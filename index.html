@@ -44,6 +44,7 @@
 :root{--bg:#f4f5f8;--card:#fff;--ink:#0f172a;--mut:#5d6577;--line:#e1e4ec;--j:#f7841f;--r:#e0412b;--b:#1fa3e0;--v:#1f9d55;--nuit:#0f172a;--nuit2:#1e293b}
 @media (prefers-color-scheme:dark){:root{--bg:#0b1120;--card:#162033;--ink:#f1f4f9;--mut:#9aa4b8;--line:#26324a}}
 *{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Archivo,system-ui,sans-serif;overflow-x:clip}
 header{position:sticky;top:0;z-index:1000;display:flex;align-items:center;gap:10px;padding:10px 16px;min-height:54px;background:var(--nuit);color:#fff}
 header b{color:var(--j);font-weight:800;flex:1;font-size:18px}
@@ -145,9 +146,38 @@ details{margin:12px 0}summary{cursor:pointer;font-weight:700;padding:10px 0;min-
 .etapes{display:flex;list-style:none;padding:0;margin:12px 0;gap:4px}
 .etapes li{flex:1;text-align:center;font-size:12px;color:var(--mut);border-top:5px solid var(--line);padding-top:6px}
 .etapes li.fait{border-color:var(--j);color:var(--ink);font-weight:700}
-.tabs{display:flex;overflow-x:auto;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:54px;z-index:900}
-.tabs button{flex:none;padding:14px 16px;border:0;background:none;color:var(--mut);font:600 15px Archivo,system-ui,sans-serif;border-bottom:3px solid transparent;cursor:pointer}
-.tabs button.on{color:var(--ink);border-color:var(--j)}
+.tabs{display:flex;gap:8px;overflow-x:auto;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:54px;z-index:900;padding:10px 12px;scrollbar-width:none}
+.tabs button{flex:none;padding:9px 15px;border:2px solid var(--tc);border-radius:99px;background:var(--tcl);color:var(--tc);font:700 15px Archivo,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.tabs button.on{background:var(--tc);color:#fff;box-shadow:0 4px 12px var(--tcl)}
+/* une couleur par onglet */
+.t-dir,.t-dem{--tc:#e8590c;--tcl:rgba(232,89,12,.12)}
+.t-liv,.t-mes{--tc:#0284c7;--tcl:rgba(2,132,199,.12)}
+.t-lvr,.t-bil{--tc:#16a34a;--tcl:rgba(22,163,74,.12)}
+.t-pla{--tc:#7c3aed;--tcl:rgba(124,58,237,.12)}
+.t-cai{--tc:#b7791f;--tcl:rgba(183,121,31,.14)}
+.t-rap{--tc:#4338ca;--tcl:rgba(67,56,202,.12)}
+.t-reg{--tc:#475569;--tcl:rgba(71,85,105,.12)}
+/* la page prend la couleur de son onglet */
+.vue{border-top:6px solid var(--tc);background:linear-gradient(var(--tcl),transparent 220px)}
+.vue h3{color:var(--tc)}
+.vue .card{border-left:6px solid var(--tc)}
+.vue .card.plainte{border-left-color:var(--r)}
+.vue .kpi{border-top:5px solid var(--tc)}
+.vue .kpi.fort{background:var(--tc);border-color:var(--tc)}.vue .kpi.fort b{color:#fff}
+/* sections du formulaire client */
+.sec{border:0;border-left:6px solid var(--sc);background:var(--sct);border-radius:14px;padding:14px 14px 10px;margin:16px 0}
+.sec legend{background:var(--sc);color:#fff;border-radius:99px;padding:5px 14px;font-weight:800;font-size:15px;margin-bottom:4px}
+.s-vous{--sc:#475569;--sct:rgba(71,85,105,.08)}
+.s-prise{--sc:#e0412b;--sct:rgba(224,65,43,.08)}
+.s-dest{--sc:#16a34a;--sct:rgba(22,163,74,.08)}
+.s-colis{--sc:#0284c7;--sct:rgba(2,132,199,.08)}
+.s-reco{--sc:#7c3aed;--sct:rgba(124,58,237,.08)}
+.s-delai{--sc:#e8590c;--sct:rgba(232,89,12,.08)}
+.s-pay{--sc:#b7791f;--sct:rgba(183,121,31,.10)}
+.soustitre{font-weight:700;margin:12px 0 4px}
+/* cartes du suivi */
+.c-det{border-left:6px solid #0284c7}.c-pay{border-left:6px solid #b7791f}.c-pay h3{color:#b7791f}
+.c-msg{border-left:6px solid #7c3aed}.c-msg h3{color:#7c3aed}.c-avis{border-left:6px solid #16a34a}.c-avis h3{color:#16a34a}
 .lvbar{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--card)}.lvbar small{display:block;color:var(--mut)}
 .switch{position:relative;width:58px;height:32px;flex:none}.switch input{opacity:0;width:0;height:0;position:absolute}
 .switch span{position:absolute;inset:0;background:#999;border-radius:99px;transition:.2s}
@@ -198,7 +228,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '13';
+const VERSION = '14';
 // ----- photo du livreur -----
 const photoLv = id => (S.livreurs.find(l => l.id === id) || {}).photo || '';
 const avatar = (id, t) => { const ph = photoLv(id); return ph ? `<img class="avatar ${t || ''}" src="${ph}" alt="Photo du livreur" data-a="voirPhoto" data-id="${id}">` : ''; };
@@ -209,7 +239,7 @@ function reduirePhoto(fichier){ return new Promise((ok, ko) => { const img = new
     URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.72)); };
   img.onerror = () => ko(new Error('Photo illisible')); img.src = url; }); }
 // ----- types de colis (liste écrite par le patron dans Réglages) -----
-const typeColisChamp = () => `<fieldset><legend>Que faut-il livrer ?</legend><div class="choix">${S.p.typesColis.map(t => `<label><input type="radio" name="ctype" value="${esc(t)}">${esc(t)}</label>`).join('')}
+const typeColisChamp = () => `<fieldset class="sec s-colis"><legend>📦 Que faut-il livrer ?</legend><div class="choix">${S.p.typesColis.map(t => `<label><input type="radio" name="ctype" value="${esc(t)}">${esc(t)}</label>`).join('')}
   <label><input type="radio" name="ctype" value="">Autre</label></div><label>Précisez (facultatif)<input name="colis" placeholder="Ex. 2 cartons, gâteau à 3 étages…"></label></fieldset>`;
 const nomColis = f => [new FormData(f).get('ctype'), f.colis.value.trim()].filter(Boolean).join(' — ') || 'Colis';
 // ----- prix à la distance réelle (route) entre récupération et livraison -----
@@ -251,7 +281,7 @@ const filMsgs = (id, voir, moi, n) => { const a = msgsDe(id).filter(voir); retur
 const repRapides = (id, de, liste, a) => `<div class="choix">${liste.map(t => `<button type="button" class="btn s" data-a="envMsg" data-id="${id}" data-de="${de}" data-to="${a}" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
   <div class="row"><input id="mTxt-${de}" placeholder="Écrire un message…" style="flex:1"><button class="btn s jaune" data-a="envMsg" data-id="${id}" data-de="${de}" data-to="${a}">Envoyer</button></div>`;
 const TAGS = ['Fragile','Lourd','Long / encombrant','Liquide','Nourriture / gâteau','Documents','À garder droit','Urgent'];
-const colisChamp = () => `<fieldset><legend>Recommandations sur le colis</legend><p class="note">Touchez tout ce qui s'applique :</p>
+const colisChamp = () => `<fieldset class="sec s-reco"><legend>⚠️ Recommandations sur le colis</legend><p class="note">Touchez tout ce qui s'applique :</p>
   <div class="choix">${TAGS.map(t => `<label><input type="checkbox" name="tag" value="${esc(t)}">${esc(t)}</label>`).join('')}</div>
   <label>Consignes pour le livreur (facultatif)<textarea name="consignes" rows="2" placeholder="Ex. ne pas pencher le carton, appeler avant d'arriver, 2e étage…"></textarea></label></fieldset>`;
 const lireColis = f => ({tags:new FormData(f).getAll('tag'), consignes:(f.consignes.value || '').trim()});
@@ -323,10 +353,10 @@ const moyenne = id => { const n = notesLv(id); return n.length ? {m:sum(n, a => 
 function mesPlaintes(id){ return S.plaintes.filter(x => x.livraisonId === id).map(x => `<div class="card plainte"><b>Réclamation : ${esc(x.motif)}</b> <span class="pill ${x.statut === 'resolue' ? 'livree' : 'attente'}">${x.statut === 'resolue' ? 'Résolue' : x.statut === 'encours' ? 'En traitement' : 'Reçue'}</span>
   <p class="note">${esc(x.texte)}</p>${x.reponse ? `<p><b>Réponse :</b> ${esc(x.reponse)}</p>` : ''}</div>`).join(''); }
 // ----- délai maximum de récupération -----
-const delaiChamp = () => `<label>Le colis doit être récupéré au plus tard
+const delaiChamp = () => `<fieldset class="sec s-delai"><legend>⏰ Délai de récupération</legend><label>Le colis doit être récupéré au plus tard
   <select name="delai" data-c="delai"><option value="15">dans 15 minutes</option><option value="30" selected>dans 30 minutes</option><option value="45">dans 45 minutes</option>
   <option value="60">dans 1 heure</option><option value="90">dans 1 h 30</option><option value="120">dans 2 heures</option><option value="h">à une heure précise…</option></select></label>
-  <label class="hPrecise" hidden>Heure limite de récupération<input name="hLim" type="time"></label>`;
+  <label class="hPrecise" hidden>Heure limite de récupération<input name="hLim" type="time"></label></fieldset>`;
 function lireDelai(f){ if(f.delai.value !== 'h') return Date.now() + f.delai.value * 60000;
   if(!f.hLim.value) return null; const [hh, mm] = f.hLim.value.split(':'), d = new Date(); d.setHours(+hh, +mm, 0, 0);
   if(+d < Date.now()) d.setDate(d.getDate() + 1); return +d; }
@@ -429,7 +459,7 @@ function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('on
 function modal(h, init){ $('#modalBox').innerHTML = h; $('#modal').hidden = false; init && init(); }
 function fermer(){ $('#modal').hidden = true; }
 function show(h, o = {}){ VUE.quit && VUE.quit(); if(!(S.role === 'livreur' && S.svc)) sansAlerte('gps'); $('#app').innerHTML = h; VUE = o; $('#btnQuit').hidden = !S.role || (S.role === 'client' && ls.get('viaLien', 0)); o.init && o.init(); o.refresh && o.refresh(); scrollTo(0,0); }
-const tabs = (list, cur) => `<nav class="tabs">${list.map(([k,t]) => `<button data-a="tab" data-id="${k}" class="${k===cur?'on':''}">${t}</button>`).join('')}</nav>`;
+const tabs = (list, cur) => `<nav class="tabs">${list.map(([k,t]) => `<button data-a="tab" data-id="${k}" class="t-${k} ${k===cur?'on':''}">${t}</button>`).join('')}</nav>`;
 
 // ---------- cartes ----------
 const CTN = [6.3654, 2.4183];
@@ -592,15 +622,16 @@ function zoneAuto(sel, adresse){ const a = sansAccent(adresse);
   if(z) sel.value = z.n; }
 function commande(){ const me = ls.get('client', {}); let pos = null, destPos = null;
   show(`${bandeau('Envoyer un colis', 'o1c')}<div class="pad"><form id="f" class="form">
+    <fieldset class="sec s-vous"><legend>👤 Vous</legend>
     <label>Votre nom<input name="nom" required value="${esc(me.nom)}" autocomplete="name"></label>
-    <label>Votre téléphone<input name="tel" type="tel" required value="${esc(me.tel)}" placeholder="01 97 00 00 00"></label>
-    <fieldset><legend>Où le livreur prend le colis</legend>
+    <label>Votre téléphone<input name="tel" type="tel" required value="${esc(me.tel)}" placeholder="01 97 00 00 00"></label></fieldset>
+    <fieldset class="sec s-prise"><legend>📍 Où le livreur prend le colis</legend>
       <label>Rechercher un lieu<input id="q" type="search" autocomplete="off" placeholder="Ex. Marché Dantokpa, Église Saint Michel, Vèdoko…"></label>
       <div id="res" class="res"></div>
       <button type="button" class="btn plein" id="bGps">📍 Utiliser ma position actuelle</button>
       <p class="note" id="gInfo">Vous pouvez aussi toucher la carte pour placer le point.</p><div id="m1" class="map"></div>
       <label>Repère (quartier, carrefour, couleur du portail…)<input name="rep" required placeholder="Ex. Vèdoko, en face de la pharmacie"></label></fieldset>
-    <fieldset><legend>Où livrer</legend>
+    <fieldset class="sec s-dest"><legend>🏁 Où livrer</legend>
       <label>Zone<select name="zone">${zoneOpts()}</select></label>
       <label>Rechercher le lieu de livraison<input id="q2" type="search" autocomplete="off" placeholder="Ex. Carrefour Calavi Kpota, Stade de l'Amitié…"></label>
       <div id="res2" class="res"></div>
@@ -611,9 +642,10 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
     ${typeColisChamp()}
     ${colisChamp()}
     ${delaiChamp()}
+    <fieldset class="sec s-pay"><legend>💰 Prix et paiement</legend>
     <label>Montant à encaisser chez le destinataire (0 si rien)<input name="val" type="number" min="0" value="0" inputmode="numeric"></label>
     <div class="total">Frais de livraison <b id="fr"></b></div><p class="note" id="fid"></p>
-    <fieldset><legend>Qui paie la livraison ?</legend><div class="choix">
+    <p class="soustitre">Qui paie la livraison ?</p><div class="choix">
       <label><input type="radio" name="payeur" value="client" checked>💵 Je paie la livraison</label>
       <label><input type="radio" name="payeur" value="dest">🏠 Le receveur paie</label></div><p class="note" id="payInfo"></p></fieldset>
     <button class="btn jaune plein">Appeler un livreur</button></form></div>`, {init(){
@@ -668,20 +700,20 @@ function suivi(id){ let w = 0;
         ${c.statut === 'acceptee' && d != null ? `<p class="gros">${esc(c.livreurNom)} ${c.demarreLe ? 'arrive' : 'va partir'} : ${kmT(d)} · ≈ ${minutes(d)} min</p>` : ''}`;
       const k = c.statut + !!c.avisClient + JSON.stringify(S.plaintes.filter(x => x.livraisonId === id));
       if(k !== this.k){ this.k = k; $('#avis').innerHTML = (c.statut === 'livree' ? (c.avisClient ? `<div class="card"><p>Votre avis : <span class="etoiles">${etoiles(c.avisClient.note)}</span></p><p class="note">Merci !</p></div>`
-          : `<div class="card"><h3>Comment s'est passée la livraison ?</h3>${formAvis(id, 'client')}</div>`) : '')
+          : `<div class="card c-avis"><h3>⭐ Comment s'est passée la livraison ?</h3>${formAvis(id, 'client')}</div>`) : '')
         + mesPlaintes(id) + (c.statut !== 'attente' ? `<button class="btn rouge plein" data-a="plainte" data-id="${id}|client">Faire une réclamation</button>` : ''); }
       const kp = c.payeur + c.statut + (c.destTel || '');
       if(kp !== this.kp){ this.kp = kp; const fin = ['livree','annulee'].includes(c.statut);
-        $('#pay').innerHTML = `<div class="card"><h3>💰 Paiement</h3>${payeHtml(c)}${c.offerte ? '<p class="paye">🎁 Livraison offerte grâce à votre fidélité.</p>' : ''}${momoHtml(c)}
+        $('#pay').innerHTML = `<div class="card c-pay"><h3>💰 Paiement</h3>${payeHtml(c)}${c.offerte ? '<p class="paye">🎁 Livraison offerte grâce à votre fidélité.</p>' : ''}${momoHtml(c)}
           ${fin ? '' : `<div class="choix"><button class="btn s ${c.payeur !== 'dest' ? 'jaune' : ''}" data-a="payeur" data-id="${id}|client">💵 Je paie la livraison</button>
           <button class="btn s ${c.payeur === 'dest' ? 'jaune' : ''}" data-a="payeur" data-id="${id}|dest">🏠 Le receveur paie</button></div>
           ${c.payeur === 'dest' ? `<button class="btn s plein" data-a="prevenirDest" data-id="${id}">📲 Prévenir le receveur par WhatsApp</button>` : ''}`}</div>`; }
       const km2 = JSON.stringify(msgsDe(id)) + c.statut;
       if(km2 !== this.km2){ this.km2 = km2; const voir = m => m.a === 'client' || m.de === 'client';
-        $('#msgs').innerHTML = c.livreurId ? `<div class="card"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'client') || '<p class="note">Aucun message pour l\'instant.</p>'}
+        $('#msgs').innerHTML = c.livreurId ? `<div class="card c-msg"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'client') || '<p class="note">Aucun message pour l\'instant.</p>'}
           ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'client', MSG_CLI, 'livreur')}</div>` : ''; }
       const enCourse = ['acceptee','recuperee'].includes(c.statut);
-      $('#det').innerHTML = `<div class="card">${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Votre livreur :</b><br><span class="gros">${esc(c.livreurNom)}</span></p></div>${enCourse || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : '<p class="note">🔒 Le numéro du livreur n\'est visible que pendant la course.</p>'}` : ''}
+      $('#det').innerHTML = `<div class="card c-det">${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Votre livreur :</b><br><span class="gros">${esc(c.livreurNom)}</span></p></div>${enCourse || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : '<p class="note">🔒 Le numéro du livreur n\'est visible que pendant la course.</p>'}` : ''}
         <p><b>Livrer à :</b> ${esc(c.zone)} — ${esc(c.dest)}</p>${consignesHtml(c)}<p><b>Colis :</b> ${esc(c.colis || '')}</p>
         ${S.p.masquer ? '<p class="note">🛡️ Passez toujours par E-Courses : votre colis est suivi et garanti, et vous cumulez des livraisons offertes.</p>' : ''}
         ${c.statut === 'attente' ? `<button class="btn rouge plein" data-a="annulerC" data-id="${c.id}">Annuler la demande</button>` : ''}</div>`;
@@ -700,9 +732,9 @@ function avisDest(id){ S.role = 'dest'; S.destId = id;
       <div class="card"><p><b>Colis :</b> ${esc(c.colis || '')}</p>${consignesHtml(c)}
       <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> au livreur à la réception${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
       ${momoHtml(c)}${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Livreur :</b> ${esc(c.livreurNom)}</p></div>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
-      ${c.livreurId ? `<div class="card"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'dest') || '<p class="note">Aucun message pour l\'instant.</p>'}
+      ${c.livreurId ? `<div class="card c-msg"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'dest') || '<p class="note">Aucun message pour l\'instant.</p>'}
         ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'dest', MSG_DEST, 'livreur')}</div>` : ''}
-      ${c.avisDest ? `<div class="card"><p>Votre avis : <span class="etoiles">${etoiles(c.avisDest.note)}</span></p><p class="note">Merci !</p></div>` : c.statut === 'livree' ? `<div class="card"><h3>Notez la livraison</h3>${formAvis(id, 'dest')}</div>` : ''}
+      ${c.avisDest ? `<div class="card"><p>Votre avis : <span class="etoiles">${etoiles(c.avisDest.note)}</span></p><p class="note">Merci !</p></div>` : c.statut === 'livree' ? `<div class="card c-avis"><h3>⭐ Notez la livraison</h3>${formAvis(id, 'dest')}</div>` : ''}
       ${mesPlaintes(id)}<button class="btn rouge plein" data-a="plainte" data-id="${id}|dest">Faire une réclamation</button>`; }}); }
 
 // ---------- livreur ----------
@@ -722,8 +754,8 @@ function solde(id){ const liv = S.livraisons.filter(c => c.livreurId === id && c
 function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; S.lv = l; S.tab = tab; ls.set('role', {r:'livreur', id:l.id});
   if(ls.get('svc', false) && svcId == null) service(l, true);
   const bar = `<div class="lvbar"><div class="row" style="margin:0">${avatar(l.id, 'moyen')}<div><b>${esc(l.nom)}</b><small id="svcTxt"></small></div></div><label class="switch" aria-label="En service"><input type="checkbox" id="svc" ${S.svc ? 'checked' : ''}><span></span></label></div>`
-    + '<div id="gpsMsg" class="pad" style="padding-block:0"></div>' + tabs([['dem','Demandes'],['mes','Mes courses'],['bil','Mon bilan']], tab);
-  show(bar + (tab === 'mes' ? '<div id="m3" class="map pleine"></div><p id="rt" class="pad note" style="padding-bottom:0"></p>' : '') + '<div class="pad" id="lst"></div>', {
+    + '<div id="gpsMsg" class="pad" style="padding-block:0"></div>' + tabs([['dem','🔔 Demandes'],['mes','🛵 Mes courses'],['bil','💰 Mon bilan']], tab);
+  show(bar + `<div class="vue t-${tab}">` + (tab === 'mes' ? '<div id="m3" class="map pleine"></div><p id="rt" class="pad note" style="padding-bottom:0"></p>' : '') + '<div class="pad" id="lst"></div></div>', {
     init(){ $('#svc').onchange = ev => { service(l, ev.target.checked); VUE.refresh(); }; if(tab === 'mes') this.m = carte('m3'); },
     refresh(){ $('#svcTxt').textContent = !S.svc ? 'Hors service' : S.moi ? 'En service — position partagée' : 'En service — position pas encore trouvée';
 
@@ -788,7 +820,7 @@ function carteLivraison(c, admin){ const fin = ['livree','annulee'].includes(c.s
     ${admin && fin ? `<button class="lien note" data-a="suppr" data-id="${c.id}">Supprimer</button>` : ''}</div>`; }
 function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', {r:'patron'});
   const nbP = S.plaintes.filter(x => x.statut !== 'resolue').length;
-  const T = tabs([['dir','En direct'],['liv','Livraisons'],['lvr','Livreurs'],['pla','Avis & plaintes' + (nbP ? ' (' + nbP + ')' : '')],['cai','Caisse'],['rap','Rapports'],['reg','Réglages']], tab);
+  const T = tabs([['dir','📡 En direct'],['liv','📦 Livraisons'],['lvr','🛵 Livreurs'],['pla','⭐ Avis & plaintes' + (nbP ? ' (' + nbP + ')' : '')],['cai','💰 Caisse'],['rap','📊 Rapports'],['reg','⚙️ Réglages']], tab);
   const V = {
   dir: {h:'<div id="m4" class="map pleine"></div><div class="pad"><div class="kpis" id="k"></div><div id="lst"></div></div>',
     init(){ this.m = carte('m4'); },
@@ -866,18 +898,18 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
       <label>Nom de l'entreprise<input name="entreprise" required value="${esc(S.p.entreprise)}"></label>
       <label>Téléphone de l'entreprise (affiché aux clients)<input name="tel" type="tel" value="${esc(S.p.tel)}"></label>
       <label>Code PIN patron<input name="pinPatron" inputmode="numeric" required value="${esc(S.p.pinPatron)}"></label>
-      <fieldset><legend>Commission du livreur</legend>
+      <fieldset class="sec s-pay"><legend>💰 Commission du livreur</legend>
       <label>Pourcentage des frais de livraison (%)<input name="part" type="number" min="0" max="100" value="${+S.p.part || 0}"></label>
       <label>Et/ou montant fixe par course livrée (F CFA)<input name="fixe" type="number" min="0" value="${+S.p.fixe || 0}"></label>
       <p class="note">Mettez 0 et 0 si vos livreurs sont salariés.</p></fieldset>
       <label>Types de colis proposés aux clients (un par ligne)<textarea name="typesColis" rows="7">${esc(S.p.typesColis.join('\n'))}</textarea></label>
-      <fieldset><legend>Calcul du prix de livraison</legend>
+      <fieldset class="sec s-colis"><legend>📏 Calcul du prix de livraison</legend>
       <label>Mode de calcul<select name="tarifMode"><option value="zone" ${!modeKm() ? 'selected' : ''}>Par zone (tarifs ci-dessous)</option><option value="km" ${modeKm() ? 'selected' : ''}>Selon la distance réelle récupération → livraison</option></select></label>
       <label>Prix de départ (F)<input name="base" type="number" min="0" value="${+S.p.base || 0}"></label>
       <label>Prix par kilomètre (F)<input name="parKm" type="number" min="0" value="${+S.p.parKm || 0}"></label>
       <label>Prix minimum (F)<input name="minimum" type="number" min="0" value="${+S.p.minimum || 0}"></label>
       <p class="note">Exemple : départ ${F(S.p.base)} + ${F(S.p.parKm)}/km → 5 km = ${F(prixKm(5))}. Le prix ne dépend plus de la position du siège ni du livreur.</p></fieldset>
-      <fieldset><legend>Fidélité et anti-contournement</legend>
+      <fieldset class="sec s-reco"><legend>🎁 Fidélité et anti-contournement</legend>
       <label>Livraison offerte toutes les N livraisons (0 = non)<input name="fidelite" type="number" min="0" value="${+S.p.fidelite || 0}"></label>
       <div class="choix"><label><input type="checkbox" name="masquer" ${S.p.masquer ? 'checked' : ''}>Cacher les numéros livreur ↔ client en dehors des courses</label></div>
       <label>Numéro Mobile Money de l'entreprise (le client paie l'entreprise, pas le livreur)<input name="momo" type="tel" value="${esc(S.p.momo)}"></label>
@@ -895,7 +927,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
       if(!zones.length) return toast('Ajoutez au moins une zone');
       await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), pinPatron:d.pinPatron.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momo:(d.momo || '').trim(), relanceJours:+d.relanceJours || 14, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
   }[tab];
-  show(T + V.h, V); }
+  show(T + `<div class="vue t-${tab}">` + V.h + '</div>', V); }
 
 // ---------- actions ----------
 const ACT = {
@@ -1001,7 +1033,7 @@ const ACT = {
       <label>Rechercher le lieu de livraison<input id="pq2" type="search" autocomplete="off"></label><div id="pr2" class="res"></div>
       <label>Adresse de livraison<input name="dest" required></label><label>Nom du destinataire<input name="dNom"></label><label>Téléphone du destinataire<input name="dTel" type="tel"></label>
       ${typeColisChamp()}${colisChamp()}${delaiChamp()}
-      <fieldset><legend>Qui paie la livraison ?</legend><div class="choix"><label><input type="radio" name="payeur" value="client" checked>L'expéditeur</label><label><input type="radio" name="payeur" value="dest">Le receveur</label></div></fieldset><label>Montant à encaisser pour le colis<input name="val" type="number" min="0" value="0"></label>
+      <fieldset class="sec s-pay"><legend>💰 Qui paie la livraison ?</legend><div class="choix"><label><input type="radio" name="payeur" value="client" checked>L'expéditeur</label><label><input type="radio" name="payeur" value="dest">Le receveur</label></div></fieldset><label>Montant à encaisser pour le colis<input name="val" type="number" min="0" value="0"></label>
       <label>Frais de livraison<input name="frais" type="number" min="0"></label>
       <label>Attribuer à<select name="lv"><option value="">Laisser en attente (les livreurs la verront)</option>${lvOpts()}</select></label>
       <button class="btn jaune plein">Créer</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
