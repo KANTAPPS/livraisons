@@ -107,6 +107,13 @@ legend{font-weight:800;padding:0 6px}
 .badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--b);color:#fff;white-space:nowrap}
 .badge.gris{background:#888}.badge.vert{background:var(--v)}
 .card.loin{opacity:.7}.cand{border-top:1px solid var(--line);padding-top:6px}
+.avatar{object-fit:cover;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.25);cursor:pointer;flex:none;vertical-align:middle;background:var(--line)}
+.avatar.mini{width:28px;height:28px;margin-right:6px}.avatar.moyen{width:48px;height:48px}.avatar.grand{width:72px;height:72px}
+.avatar.vide{display:inline-grid;place-items:center;font-size:20px;cursor:default}
+.photoBox input[type=file]{display:none}.photoBox .btn{display:inline-flex!important;width:auto;margin:0}
+.photoBox{display:grid;justify-items:center;gap:8px;text-align:center;margin:6px 0 12px}
+#phPrev{width:140px;height:140px;border-radius:50%;overflow:hidden;background:var(--line);display:grid;place-items:center;color:var(--mut);font-size:14px}
+#phPrev img{width:100%;height:100%;object-fit:cover}
 .paye{background:#eefaf2;color:#0f5132;border-left:4px solid var(--v);padding:8px 10px;border-radius:8px;margin:6px 0}
 .fil{display:grid;gap:6px;margin:8px 0}.bulle{max-width:88%;padding:8px 12px;border-radius:14px 14px 14px 4px;background:var(--bg);border:1px solid var(--line);font-size:15px}
 .bulle small{display:block;color:var(--mut);font-size:12px;margin-bottom:2px}.bulle.moi{justify-self:end;border-radius:14px 14px 4px 14px;background:#fff1e3;color:#3a2000;border-color:#f6c99b}
@@ -191,7 +198,16 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '12';
+const VERSION = '13';
+// ----- photo du livreur -----
+const photoLv = id => (S.livreurs.find(l => l.id === id) || {}).photo || '';
+const avatar = (id, t) => { const ph = photoLv(id); return ph ? `<img class="avatar ${t || ''}" src="${ph}" alt="Photo du livreur" data-a="voirPhoto" data-id="${id}">` : ''; };
+// réduit la photo prise (≈ 25 Ko) pour la ranger dans la base
+function reduirePhoto(fichier){ return new Promise((ok, ko) => { const img = new Image(), url = URL.createObjectURL(fichier);
+  img.onload = () => { const T = 360, s = Math.min(1, T / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.72)); };
+  img.onerror = () => ko(new Error('Photo illisible')); img.src = url; }); }
 // ----- types de colis (liste écrite par le patron dans Réglages) -----
 const typeColisChamp = () => `<fieldset><legend>Que faut-il livrer ?</legend><div class="choix">${S.p.typesColis.map(t => `<label><input type="radio" name="ctype" value="${esc(t)}">${esc(t)}</label>`).join('')}
   <label><input type="radio" name="ctype" value="">Autre</label></div><label>Précisez (facultatif)<input name="colis" placeholder="Ex. 2 cartons, gâteau à 3 étages…"></label></fieldset>`;
@@ -665,7 +681,7 @@ function suivi(id){ let w = 0;
         $('#msgs').innerHTML = c.livreurId ? `<div class="card"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'client') || '<p class="note">Aucun message pour l\'instant.</p>'}
           ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'client', MSG_CLI, 'livreur')}</div>` : ''; }
       const enCourse = ['acceptee','recuperee'].includes(c.statut);
-      $('#det').innerHTML = `<div class="card">${c.livreurNom ? `<p><b>Votre livreur :</b> ${esc(c.livreurNom)}</p>${enCourse || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : '<p class="note">🔒 Le numéro du livreur n\'est visible que pendant la course.</p>'}` : ''}
+      $('#det').innerHTML = `<div class="card">${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Votre livreur :</b><br><span class="gros">${esc(c.livreurNom)}</span></p></div>${enCourse || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : '<p class="note">🔒 Le numéro du livreur n\'est visible que pendant la course.</p>'}` : ''}
         <p><b>Livrer à :</b> ${esc(c.zone)} — ${esc(c.dest)}</p>${consignesHtml(c)}<p><b>Colis :</b> ${esc(c.colis || '')}</p>
         ${S.p.masquer ? '<p class="note">🛡️ Passez toujours par E-Courses : votre colis est suivi et garanti, et vous cumulez des livraisons offertes.</p>' : ''}
         ${c.statut === 'attente' ? `<button class="btn rouge plein" data-a="annulerC" data-id="${c.id}">Annuler la demande</button>` : ''}</div>`;
@@ -683,7 +699,7 @@ function avisDest(id){ S.role = 'dest'; S.destId = id;
     $('#lst').innerHTML = `<p class="code">Colis ${esc(c.code)} envoyé par ${esc(c.clientNom)}</p><h2>${libelle(c)}</h2>${etapes(c)}
       <div class="card"><p><b>Colis :</b> ${esc(c.colis || '')}</p>${consignesHtml(c)}
       <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> au livreur à la réception${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
-      ${momoHtml(c)}${c.livreurNom ? `<p><b>Livreur :</b> ${esc(c.livreurNom)}</p>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
+      ${momoHtml(c)}${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Livreur :</b> ${esc(c.livreurNom)}</p></div>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
       ${c.livreurId ? `<div class="card"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'dest') || '<p class="note">Aucun message pour l\'instant.</p>'}
         ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'dest', MSG_DEST, 'livreur')}</div>` : ''}
       ${c.avisDest ? `<div class="card"><p>Votre avis : <span class="etoiles">${etoiles(c.avisDest.note)}</span></p><p class="note">Merci !</p></div>` : c.statut === 'livree' ? `<div class="card"><h3>Notez la livraison</h3>${formAvis(id, 'dest')}</div>` : ''}
@@ -705,7 +721,7 @@ function solde(id){ const liv = S.livraisons.filter(c => c.livreurId === id && c
   return {liv, enc, part, vers, reste: enc - part - vers}; }
 function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; S.lv = l; S.tab = tab; ls.set('role', {r:'livreur', id:l.id});
   if(ls.get('svc', false) && svcId == null) service(l, true);
-  const bar = `<div class="lvbar"><div><b>${esc(l.nom)}</b><small id="svcTxt"></small></div><label class="switch" aria-label="En service"><input type="checkbox" id="svc" ${S.svc ? 'checked' : ''}><span></span></label></div>`
+  const bar = `<div class="lvbar"><div class="row" style="margin:0">${avatar(l.id, 'moyen')}<div><b>${esc(l.nom)}</b><small id="svcTxt"></small></div></div><label class="switch" aria-label="En service"><input type="checkbox" id="svc" ${S.svc ? 'checked' : ''}><span></span></label></div>`
     + '<div id="gpsMsg" class="pad" style="padding-block:0"></div>' + tabs([['dem','Demandes'],['mes','Mes courses'],['bil','Mon bilan']], tab);
   show(bar + (tab === 'mes' ? '<div id="m3" class="map pleine"></div><p id="rt" class="pad note" style="padding-bottom:0"></p>' : '') + '<div class="pad" id="lst"></div>', {
     init(){ $('#svc').onchange = ev => { service(l, ev.target.checked); VUE.refresh(); }; if(tab === 'mes') this.m = carte('m3'); },
@@ -761,7 +777,7 @@ function carteLivraison(c, admin){ const fin = ['livree','annulee'].includes(c.s
   return `<div class="card"><div class="row sb">${pillC(c)}<span class="code">${esc(c.code)} · ${D(c.creeLe)} ${H(c.creeLe)}</span></div>
     <p><b>${esc(c.clientNom)}</b> ${esc(c.clientTel)}</p><p>De : ${esc(c.departTxt)}</p><p>À : ${esc(c.zone)} — ${esc(c.dest)} ${c.destNom ? '(' + esc(c.destNom) + ')' : ''}</p>
     ${c.colis ? `<p class="note">${esc(c.colis)}${c.distanceKm ? ' · ' + kmT(c.distanceKm) : ''}${c.offerte ? ' · 🎁 offerte' : ''}</p>` : ''}${consignesHtml(c)}${payeHtml(c)}${filMsgs(c.id, () => true, 'patron', 3)}<p>Frais ${F(c.frais)}${c.valeur ? ' · colis ' + F(c.valeur) : ''}${c.statut === 'livree' ? ` · <b>encaissé ${F(c.encaisse)}</b> à ${H(c.livreeLe)}` : ''}</p>
-    ${chrono(c)}${c.livreurNom ? `<p>Livreur : <b>${esc(c.livreurNom)}</b>${c.demarreLe && c.statut === 'acceptee' ? ' (parti à ' + H(c.demarreLe) + ')' : ''}</p>` : ''}
+    ${chrono(c)}${c.livreurNom ? `<p>${avatar(c.livreurId, 'mini')}Livreur : <b>${esc(c.livreurNom)}</b>${c.demarreLe && c.statut === 'acceptee' ? ' (parti à ' + H(c.demarreLe) + ')' : ''}</p>` : ''}
     ${admin && c.statut === 'attente' ? (() => { if(!pointRecup(c)) return '<p class="note">Position de récupération inconnue : estimation impossible.</p>';
       const cs = candidats(c), ok = cs.filter(x => x.ok), ko = cs.filter(x => !x.ok);
       return (ok.length ? `<p><b>Peuvent arriver à temps :</b></p>${ok.map(x => `<div class="row sb cand"><span>${esc(x.l.nom)} · ≈ ${x.min} min ${etiquette(x)}</span><button class="btn s jaune" data-a="attribuer" data-id="${c.id}|${x.l.id}">Attribuer</button></div>`).join('')}`
@@ -795,7 +811,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
   lvr: {h:'<div class="pad"><button class="btn jaune plein" data-a="lvEdit">+ Ajouter un livreur</button><div id="lst"></div></div>',
     refresh(){ $('#lst').innerHTML = S.livreurs.slice().sort((a,b) => a.nom.localeCompare(b.nom)).map(l => { const p = S.positions.find(x => x.id === l.id);
       const on = p && p.enService && Date.now() - p.t < 10 * 60000;
-      return `<div class="card"><div class="row sb"><b>${esc(l.nom)}</b><span class="pill ${l.actif === false ? 'annulee' : on ? 'livree' : 'attente'}">${l.actif === false ? 'Désactivé' : on ? 'En service' : 'Hors service'}</span></div>
+      return `<div class="card"><div class="row sb"><span class="row" style="margin:0">${avatar(l.id, 'moyen') || '<span class="avatar moyen vide">📷</span>'}<b>${esc(l.nom)}</b></span><span class="pill ${l.actif === false ? 'annulee' : on ? 'livree' : 'attente'}">${l.actif === false ? 'Désactivé' : on ? 'En service' : 'Hors service'}</span></div>
         <p>${esc(l.tel)} · PIN ${esc(l.pin)}${(() => { const mo = moyenne(l.id); return mo ? ` · <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} (${mo.n})` : ''; })()}</p><p class="note">${solde(l.id).liv.length} course(s) livrée(s)${p && p.t ? ' · vu le ' + D(p.t) + ' à ' + H(p.t) : ''}</p>
         <div class="row">${contact(l.tel)}<button class="btn s" data-a="lvEdit" data-id="${l.id}">Modifier</button>
         <button class="btn s ${l.actif === false ? '' : 'rouge'}" data-a="lvToggle" data-id="${l.id}">${l.actif === false ? 'Réactiver' : 'Désactiver'}</button></div></div>`; }).join('')
@@ -883,6 +899,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
 
 // ---------- actions ----------
 const ACT = {
+  voirPhoto(id){ const l = S.livreurs.find(x => x.id === id); if(!l || !l.photo) return; modal(`<h2>${esc(l.nom)}</h2><img src="${l.photo}" alt="" style="width:100%;border-radius:14px"><button class="btn plein" data-a="fermer">Fermer</button>`); },
   ferAl(k){ sansAlerte(k); },
   alarmeOk(){ fermer(); setTimeout(surveiller, 400); },   // affiche l'alarme suivante s'il y en a
   async envMsg(id, el){ const de = el.dataset.de, inp = $('#mTxt-' + de), txt = (el.dataset.t || (inp && inp.value) || '').trim(); if(!txt) return toast('Écrivez un message');
@@ -1001,11 +1018,18 @@ const ACT = {
           ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})});
         fermer(); toast('Livraison créée'); memoriser(d.rep, dep, ''); memoriser(d.dest, dst, d.zone); }; }); },
   lvEdit(id){ const l = S.livreurs.find(x => x.id === id) || {};
-    modal(`<h2>${id ? 'Modifier' : 'Nouveau'} livreur</h2><form id="fm" class="form"><label>Nom<input name="nom" required value="${esc(l.nom)}"></label>
+    modal(`<h2>${id ? 'Modifier' : 'Nouveau'} livreur</h2><form id="fm" class="form">
+      <div class="photoBox"><div id="phPrev">${l.photo ? `<img src="${l.photo}" alt="">` : '<span>Pas de photo</span>'}</div>
+        <label class="btn jaune">📸 Prendre la photo<input id="phIn" type="file" accept="image/*" capture="environment" hidden></label>
+        <p class="note">Photographiez le visage du livreur, de face et bien éclairé. Le client verra cette photo quand ce livreur prendra sa course.</p></div>
+      <label>Nom<input name="nom" required value="${esc(l.nom)}"></label>
       <label>Téléphone<input name="tel" type="tel" required value="${esc(l.tel)}"></label>
       <label>Code PIN (4 chiffres)<input name="pin" inputmode="numeric" required pattern="[0-9]{4}" value="${esc(l.pin || String(Math.floor(1000 + Math.random() * 9000)))}"></label>
       <button class="btn jaune plein">Enregistrer</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
-      const f = $('#fm'); f.onsubmit = async ev => { ev.preventDefault(); const d = {nom:f.nom.value.trim(), tel:f.tel.value.trim(), pin:f.pin.value};
+      const f = $('#fm'); let photo = l.photo || '';
+      $('#phIn').onchange = async ev => { const fi = ev.target.files[0]; if(!fi) return; $('#phPrev').innerHTML = '<span>Préparation…</span>';
+        try { photo = await reduirePhoto(fi); $('#phPrev').innerHTML = `<img src="${photo}" alt="">`; } catch(er){ $('#phPrev').innerHTML = '<span>Photo illisible, recommencez</span>'; } };
+      f.onsubmit = async ev => { ev.preventDefault(); const d = {nom:f.nom.value.trim(), tel:f.tel.value.trim(), pin:f.pin.value, photo};
         if(id) await DB.set('livreurs', id, d); else await DB.add('livreurs', {...d, actif:true, creeLe:Date.now()}); fermer(); toast('Livreur enregistré'); }; }); },
   async lvToggle(id){ const l = S.livreurs.find(x => x.id === id); await DB.set('livreurs', id, {actif: l.actif === false}); },
   versement(id){ const l = S.livreurs.find(x => x.id === id), s = solde(id);
