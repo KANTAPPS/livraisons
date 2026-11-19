@@ -175,6 +175,7 @@ details{margin:12px 0}summary{cursor:pointer;font-weight:700;padding:10px 0;min-
 .s-reco{--sc:#7c3aed;--sct:rgba(124,58,237,.08)}
 .s-delai{--sc:#e8590c;--sct:rgba(232,89,12,.08)}
 .s-pay{--sc:#b7791f;--sct:rgba(183,121,31,.10)}
+.lvNtfy{border-bottom:1px solid var(--line);padding:6px 0}.lvNtfy label{flex-wrap:nowrap;gap:8px}.lvNtfy input{display:inline-block!important;accent-color:var(--v)}
 .soustitre{font-weight:700;margin:12px 0 4px}
 /* cartes du suivi */
 .c-det{border-left:6px solid #0284c7}.c-pay{border-left:6px solid #b7791f}.c-pay h3{color:#b7791f}
@@ -237,10 +238,10 @@ const CONFIG = {
 };
 // ===============================================================
 
-const DEF = {entreprise: CONFIG.entreprise, tel: '', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
+const DEF = {entreprise: CONFIG.entreprise, tel: '', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '18';
+const VERSION = '22';
 // ----- photo du livreur -----
 const photoLv = id => (S.livreurs.find(l => l.id === id) || {}).photo || '';
 const avatar = (id, t) => { const ph = photoLv(id); return ph ? `<img class="avatar ${t || ''}" src="${ph}" alt="Photo du livreur" data-a="voirPhoto" data-id="${id}">` : ''; };
@@ -377,12 +378,33 @@ const duree = ms => { const m = Math.round(Math.abs(ms) / 60000); return m < 60 
 function chrono(c){ if(!aRecup(c)) return ''; const r = c.limiteRecup - Date.now();
   return `<p class="chrono ${r <= 0 ? 'retard' : r <= 5 * 60000 ? 'urgent' : ''}">⏰ À récupérer avant <b>${H(c.limiteRecup)}</b> — ${r <= 0 ? 'en retard de ' + duree(r) : 'reste ' + duree(r)}</p>`; }
 let audio = null;
-function bip(){ try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume();
-  [0, .35, .7, 1.4, 1.75, 2.1].forEach(t => { const o = audio.createOscillator(), g = audio.createGain(); o.type = 'square'; o.frequency.value = 880;
-    g.gain.value = .25; o.connect(g).connect(audio.destination); o.start(audio.currentTime + t); o.stop(audio.currentTime + t + .22); }); } catch {} }
-function alarme(titre, texte, bon){ bip(); try { navigator.vibrate && navigator.vibrate([500, 200, 500, 200, 800]); } catch {}
+// sonnerie « comme un appel » : deux tons qui se répètent jusqu'à « J'ai compris » (1 minute maximum)
+function bip(){ try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); const t0 = audio.currentTime;
+  [0, .5].forEach(d => [880, 1100].forEach((f, k) => { const o = audio.createOscillator(), g = audio.createGain(); o.type = 'square'; o.frequency.value = f;
+    g.gain.value = .3; o.connect(g).connect(audio.destination); o.start(t0 + d + k * .2); o.stop(t0 + d + k * .2 + .18); })); } catch {} }
+let sonnerie = null, titreOrig = document.title, clignote = null;
+function sonner(long, titre){ arreterSonnerie(); const fin = Date.now() + (long ? 60000 : 2500);
+  const tour = () => { if(Date.now() > fin) return arreterSonnerie(); bip(); try { navigator.vibrate && navigator.vibrate([700, 300, 700]); } catch {} };
+  tour(); sonnerie = setInterval(tour, 2200);
+  if(long){ let x = 0; clignote = setInterval(() => document.title = (x++ % 2) ? titreOrig : '🔔 ' + titre, 900); } }
+function arreterSonnerie(){ clearInterval(sonnerie); clearInterval(clignote); sonnerie = clignote = null; document.title = titreOrig; try { navigator.vibrate && navigator.vibrate(0); } catch {} }
+function alarme(titre, texte, bon){ sonner(!bon && !titre.startsWith('💬'), titre);
   try { if(window.Notification && Notification.permission === 'granted') new Notification(titre, {body:texte}); } catch {}
   modal(`<div class="alarme ${bon ? 'bon' : ''}"><h2>${esc(titre)}</h2><p>${esc(texte)}</p></div><button class="btn jaune plein" data-a="alarmeOk">J'ai compris</button>`); }
+// ----- écran toujours allumé pendant le service (livreur) et dans l'espace patron -----
+let verrou = null, veilleVoulue = false;
+async function garderEcran(on){ on = on && !!S.p.ecranAllume; veilleVoulue = on;
+  try { if(on && !verrou && 'wakeLock' in navigator){ verrou = await navigator.wakeLock.request('screen'); verrou.addEventListener('release', () => verrou = null); }
+    else if(!on && verrou){ await verrou.release(); verrou = null; } } catch {} }
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && veilleVoulue) garderEcran(true); });
+// ----- alertes ntfy : font sonner les téléphones même verrouillés -----
+const canalLv = id => (S.p.ntfyCanal || '') + '-l-' + String(id).replace(/[^A-Za-z0-9]/g, '').slice(-12);   // fin de l'identifiant : unique pour chaque livreur
+const canalPatron = () => (S.p.ntfyCanal || '') + '-patron';
+function ntfy(canal, titre, texte, prio, lien){ if(!S.p.ntfyActif || !S.p.ntfyCanal || !canal) return;
+  const lvC = S.livreurs.find(l => canal === canalLv(l.id)); if(lvC && lvC.ntfyOn === false) return;   // décoché par le patron
+  fetch(S.p.ntfyServeur || 'https://ntfy.sh', {method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({topic:canal, title:titre, message:texte, priority:prio || 5, click:lienApp() + (lien || '')})}).catch(() => {}); }
+const resumeCmd = c => `${c.departTxt || ''} → ${c.zone || ''} · ${F(c.frais)}${c.limiteRecup ? ' · avant ' + H(c.limiteRecup) : ''}`;
 const PRES = {};   // depuis quand un livreur stationne chez un client régulier sans course
 function presencesSuspectes(){ const out = [], clients = clientsReguliers().filter(x => x.n >= 2 && x.pts.length);
   S.positions.filter(p => p.enService && p.lat != null && Date.now() - p.t < 10 * 60000).forEach(p => {
@@ -390,7 +412,25 @@ function presencesSuspectes(){ const out = [], clients = clientsReguliers().filt
     clients.forEach(cl => { const k = p.id + '|' + telCle(cl.tel), pt = cl.pts.find(x => km(p, x) < 0.08);
       if(pt && !actifs.some(a => km(a, pt) < 0.3)){ PRES[k] ||= Date.now(); if(Date.now() - PRES[k] > 5 * 60000) out.push({p, cl, k}); } else delete PRES[k]; }); });
   return out; }
-function surveiller(){ const vu = ls.get('alarmes', {}); let msg = null, bon = false; const dire = (k, t, x, b) => { if(vu[k] || msg) return; vu[k] = 1; msg = [t, x]; bon = !!b; };   // une alarme à la fois, les autres suivent
+// ----- rappels : toutes les N minutes tant que le colis n'est pas récupéré -----
+const rappelMs = () => (+S.p.rappelMin || 10) * 60000;
+function rappels(){ if(!DB) return; const N = rappelMs(), now = Date.now(), moi = ls.get('cmd', null);
+  S.livraisons.forEach(c => {
+    if(!['attente','acceptee'].includes(c.statut)) return;
+    if(['client','dest'].includes(S.role) && c.id !== (S.role === 'dest' ? S.destId : moi)) return;   // un client ne s'occupe que de sa commande
+    if(!['client','dest','livreur','patron'].includes(S.role)) return;
+    const base = c.statut === 'acceptee' ? (c.accepteeLe || c.creeLe) : c.creeLe;
+    if(now - Math.max(c.rappelLe || 0, base) < N) return;
+    const ancien = c.rappels || 0, n = ancien + 1, min = Math.round((now - base) / 60000);
+    c.rappelLe = now; c.rappels = n;
+    DB.reserver(c.id, ancien, {rappelLe:now, rappels:n}).then(() => {
+      if(c.statut === 'acceptee'){
+        ntfy(canalLv(c.livreurId), '⏰ Rappel : le client vous attend', `${c.code} : ${resumeCmd(c)} — accepté il y a ${min} min, colis pas encore récupéré`, 5, '#livreur');
+        if(n >= 2) ntfy(canalPatron(), `⏰ ${c.livreurNom} ne s'est pas encore présenté`, `${c.code} accepté il y a ${min} min, colis toujours pas récupéré`, 5, '#patron');
+      } else ntfy(S.p.ntfyCanal, '🔔 Rappel : demande toujours en attente', `${c.code} : ${resumeCmd(c)} — en attente depuis ${min} min`, 5, '#livreur');
+    }).catch(() => {});   // un autre téléphone l'a déjà envoyé
+  }); }
+function surveiller(){ rappels(); const vu = ls.get('alarmes', {}); let msg = null, bon = false; const dire = (k, t, x, b) => { if(vu[k] || msg) return; vu[k] = 1; msg = [t, x]; bon = !!b; };   // une alarme à la fois, les autres suivent
   const att = S.livraisons.filter(c => c.statut === 'attente');
   if(S.role === 'livreur' && S.lv && S.svc) att.forEach(c => { const e = estimer(S.lv.id, S.moi, pointRecup(c));
     if(!e || e.min <= resteMin(c)) dire('n' + c.id, '🔔 Nouvelle demande de livraison', `${c.departTxt} → ${c.zone}${e ? ` · vous y êtes en ≈ ${e.min} min` : ''}${c.limiteRecup ? ` · à récupérer avant ${H(c.limiteRecup)}` : ''}${e && e.trajet ? ' · sur votre trajet' : ''} · ${c.payeur === 'dest' ? 'payée par le receveur' : "payée par l'expéditeur"}`); });
@@ -418,6 +458,17 @@ function surveiller(){ const vu = ls.get('alarmes', {}); let msg = null, bon = f
   // changement de paiement fait par le client : patron + livreur de la course
   S.livraisons.filter(c => c.payeurLe && c.payeurPar === 'client' && (S.role === 'patron' || (S.role === 'livreur' && S.lv && c.livreurId === S.lv.id)))
     .forEach(c => { const a = aPayer(c); dire('pay' + c.id + c.payeurLe, '💰 Paiement choisi par le client', `${c.code} : ${c.payeur === 'dest' ? `c'est le RECEVEUR qui paie ${F(a.dest)} à la réception` : `c'est l'EXPÉDITEUR qui paie ${F(a.exp)}`}.`); });
+  // rappels dans l'application (chaque nouveau rappel fait sonner)
+  S.livraisons.filter(c => c.rappels > 0 && ['attente','acceptee'].includes(c.statut)).forEach(c => {
+    const min = Math.round((Date.now() - (c.statut === 'acceptee' ? (c.accepteeLe || c.creeLe) : c.creeLe)) / 60000);
+    if(S.role === 'livreur' && S.lv && c.livreurId === S.lv.id && c.statut === 'acceptee')
+      dire('rap' + c.id + c.rappels, '⏰ Rappel : le client vous attend', `${c.code} : prendre chez ${c.clientNom} (${c.departTxt}). Course acceptée il y a ${min} min, colis pas encore récupéré.`);
+    if(S.role === 'livreur' && S.lv && S.svc && c.statut === 'attente')
+      dire('rapn' + c.id + c.rappels, '🔔 Rappel : demande toujours en attente', `${c.code} : ${resumeCmd(c)} — personne ne l'a encore acceptée (${min} min).`);
+    if(S.role === 'patron' && c.statut === 'acceptee' && c.rappels >= 2)
+      dire('rapp' + c.id + c.rappels, `⏰ ${c.livreurNom} ne s'est pas encore présenté`, `${c.code} : accepté il y a ${min} min, colis toujours pas récupéré. Appelez le livreur ou attribuez la course à un autre.`);
+    if(S.role === 'patron' && c.statut === 'attente')
+      dire('rapa' + c.id + c.rappels, '🔔 Demande toujours en attente', `${c.code} : ${resumeCmd(c)} — personne ne l'a acceptée depuis ${min} min.`); });
   // livreur : course attribuée par le patron
   if(S.role === 'livreur' && S.lv) S.livraisons.filter(c => c.livreurId === S.lv.id && c.attribPar === 'patron' && c.statut === 'acceptee')
     .forEach(c => dire('a' + c.id + c.accepteeLe, '📋 Le patron vous a attribué une course', `${c.code} : prendre chez ${c.clientNom} (${c.departTxt}) → ${c.zone}`));
@@ -469,12 +520,12 @@ function attente(n){ enCours += n; clearTimeout(tAtt);
   if(enCours <= 0){ enCours = 0; sansAlerte('wait'); return; }
   tAtt = setTimeout(() => { alerte('wait', '⏳ Patientez, enregistrement en cours…');
     tAtt = setTimeout(() => enCours > 0 && alerte('wait', navigator.onLine ? '⏳ La connexion est lente, patientez… Votre action est gardée et sera envoyée.' : '⏳ En attente de connexion : votre action sera envoyée dès le retour d\'Internet.'), 8000); }, 700); }
-function suivreDB(){ for(const k of ['add','set','del','prendre']){ const f = DB[k].bind(DB);
+function suivreDB(){ for(const k of ['add','set','del','prendre','reserver']){ const f = DB[k].bind(DB);
   DB[k] = (...a) => { attente(1); const pr = Promise.resolve().then(() => f(...a)); pr.then(() => attente(-1), er => { attente(-1);
-    if(k !== 'prendre') alerte('bug', "⚠️ L'enregistrement a échoué (" + (er && er.message || er) + '). Réessayez.', 'bug', true); }); return pr; }; } }
+    if(k !== 'prendre' && k !== 'reserver') alerte('bug', "⚠️ L'enregistrement a échoué (" + (er && er.message || er) + '). Réessayez.', 'bug', true); }); return pr; }; } }
 function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 3200); }
 function modal(h, init){ $('#modalBox').innerHTML = h; $('#modal').hidden = false; init && init(); }
-function fermer(){ $('#modal').hidden = true; }
+function fermer(){ $('#modal').hidden = true; arreterSonnerie(); }
 function show(h, o = {}){ VUE.quit && VUE.quit(); if(!(S.role === 'livreur' && S.svc)) sansAlerte('gps'); $('#app').innerHTML = h; VUE = o; $('#btnQuit').hidden = !S.role || (S.role === 'client' && ls.get('viaLien', 0)); o.init && o.init(); o.refresh && o.refresh(); scrollTo(0,0); }
 const tabs = (list, cur) => `<nav class="tabs">${list.map(([k,t]) => `<button data-a="tab" data-id="${k}" class="t-${k} ${k===cur?'on':''}">${t}</button>`).join('')}</nav>`;
 
@@ -515,7 +566,7 @@ let gpsId = null, svcId = null, svcW = 0;
 function gps(cb){ if(!navigator.geolocation) return toast('Localisation indisponible sur cet appareil'); stopGps(); gpsId = geo(cb); }
 function stopGps(){ if(gpsId != null) navigator.geolocation.clearWatch(gpsId); gpsId = null; }
 let gpsEtat = '';
-function service(l, on){ S.svc = on; ls.set('svc', on);
+function service(l, on){ S.svc = on; ls.set('svc', on); garderEcran(on);
   const maj = p => { S.moi = {lat:p.coords.latitude, lng:p.coords.longitude, acc:Math.round(p.coords.accuracy), t:Date.now()}; gpsEtat = ''; sansAlerte('gps'); precision(S.moi.acc);
     if(Date.now() - svcW > 10000){ svcW = Date.now(); DB.set('positions', l.id, {lat:S.moi.lat, lng:S.moi.lng, t:S.moi.t, nom:l.nom, enService:true}); }
     VUE.refresh && VUE.refresh(); };
@@ -537,12 +588,15 @@ function localDB(){ const K = 'livr_essai'; let st = ls.get(K, {}); const ecoute
     async add(c, d){ const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6); col(c)[id] = d; save(); return id; },
     async set(c, id, d){ col(c)[id] = {...(col(c)[id] || {}), ...d}; save(); },
     async del(c, id){ delete col(c)[id]; save(); },
+    async reserver(id, ancien, d){ st = ls.get(K, st); const x = col('livraisons')[id]; if(!x || (x.rappels || 0) !== ancien) throw new Error('déjà fait'); Object.assign(x, d); save(); },
     async prendre(id, d){ const x = col('livraisons')[id]; if(!x || x.statut !== 'attente') throw new Error('Course déjà prise par un autre livreur'); Object.assign(x, d); save(); } }; }
 function fireDB(){ const fs = firebase.firestore();
   return { watch(c, cb){ fs.collection(c).onSnapshot(s => cb(s.docs.map(d => ({id:d.id, ...d.data()}))), er => alerte('bug', '⚠️ Lecture des données impossible (' + er.message + '). Vérifiez la connexion puis rechargez.', 'bug', true)); },
     async add(c, d){ return (await fs.collection(c).add(d)).id; },
     async set(c, id, d){ await fs.collection(c).doc(id).set(d, {merge:true}); },
     async del(c, id){ await fs.collection(c).doc(id).delete(); },
+    reserver(id, ancien, d){ const ref = fs.collection('livraisons').doc(id);   // un seul téléphone gagne le droit d'envoyer le rappel
+      return fs.runTransaction(async tx => { const x = await tx.get(ref); if(!x.exists || (x.data().rappels || 0) !== ancien) throw new Error('déjà fait'); tx.update(ref, d); }); },
     prendre(id, d){ const ref = fs.collection('livraisons').doc(id);
       return fs.runTransaction(async tx => { const x = await tx.get(ref);
         if(!x.exists || x.data().statut !== 'attente') throw new Error('Course déjà prise par un autre livreur'); tx.update(ref, d); }); } }; }
@@ -560,7 +614,7 @@ const ICO = {
   colis:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>',
   moto:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M8 17h6l3-6h-4l-2-3H8M14 6h3"/></svg>',
   boss:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>' };
-function accueil(){ S.role = null; ls.set('role', null);
+function accueil(){ S.role = null; ls.set('role', null); garderEcran(false);
   show(`<section class="accueil"><img class="logo" src="${LOGO}" alt="${esc(S.p.entreprise)}">
     <h1>${esc(S.p.entreprise)}</h1><p>Livraison en moto, suivie en direct sur la carte.</p>
     <div class="opts">
@@ -698,6 +752,7 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       const d = Object.fromEntries(new FormData(f)); ls.set('client', {nom:d.nom, tel:d.tel});
       const id = await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
         destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc ?? prix(d.zone), distanceKm:distCalc, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client'});
+      ntfy(S.p.ntfyCanal, '🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc ?? prix(d.zone), limiteRecup:lim}), 5, '#livreur');
       ls.set('cmd', id); toast('✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }}); }
 const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexOf(c.statut); if(i < 0) return ''; if(i >= 2 || (i === 1 && c.demarreLe)) i++;
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
@@ -711,6 +766,7 @@ function suivi(id){ let w = 0;
       if(!c){ $('#st').innerHTML = '<p class="vide">Demande introuvable.</p>'; $('#det').innerHTML = ''; return; }
       const lv = c.livreurId && S.positions.find(x => x.id === c.livreurId), d = km(lv, c.clientPos || c.depart);
       const nb = c.statut === 'attente' ? candidats(c).filter(x => x.ok).length : 0;
+      if(c.statut === 'attente' && Date.now() - c.creeLe > 5 * 60000 && !ls.get('ntfy5' + id, 0)){ ls.set('ntfy5' + id, 1); ntfy(canalPatron(), '⚠️ Aucun livreur depuis 5 min', c.code + ' : ' + resumeCmd(c), 5, '#patron'); }
       $('#st').innerHTML = `<p class="code">Commande ${esc(c.code)}</p><h2>${libelle(c)}</h2>${etapes(c)}
         ${c.statut === 'attente' && Date.now() - c.creeLe > 5 * 60000 ? `<p class="alerte">⏳ Aucun livreur n'a encore accepté. Patientez encore un peu${S.p.tel ? `, ou appelez-nous : <a href="tel:${num(S.p.tel)}">${esc(S.p.tel)}</a>` : ''}.</p>` : ''}
         ${chrono(c)}${c.statut === 'attente' ? `<p class="note">${nb ? `${nb} livreur(s) peuvent arriver à temps. Le premier qui accepte vient chez vous.` : 'Nous cherchons un livreur proche de vous…'}</p>` : ''}
@@ -774,7 +830,7 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; S.lv = l; S.tab = tab; 
     + '<div id="gpsMsg" class="pad" style="padding-block:0"></div>' + tabs([['dem','🔔 Demandes'],['mes','🛵 Mes courses'],['bil','💰 Mon bilan']], tab);
   show(bar + `<div class="vue t-${tab}">` + (tab === 'mes' ? '<div id="m3" class="map pleine"></div><p id="rt" class="pad note" style="padding-bottom:0"></p>' : '') + '<div class="pad" id="lst"></div></div>', {
     init(){ $('#svc').onchange = ev => { service(l, ev.target.checked); VUE.refresh(); }; if(tab === 'mes') this.m = carte('m3'); },
-    refresh(){ $('#svcTxt').textContent = !S.svc ? 'Hors service' : S.moi ? 'En service — position partagée' : 'En service — position pas encore trouvée';
+    refresh(){ $('#svcTxt').textContent = !S.svc ? 'Hors service' : (S.moi ? 'En service — position partagée' : 'En service — position pas encore trouvée') + (verrou ? ' · écran maintenu allumé' : '');
 
       const avert = S.svc ? '' : '<p class="alerte">Activez « En service » pour partager votre position et voir les distances.</p>';
       if(tab === 'dem'){
@@ -806,7 +862,9 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; S.lv = l; S.tab = tab; 
         const enRoute = mes.find(c => c.statut === 'acceptee' ? c.demarreLe : c.demarreLivLe) || mes[0];
         trajet(m, S.moi, enRoute && (enRoute.statut === 'acceptee' ? pointRecup(enRoute) : enRoute.destPos)); $('#rt').textContent = RT.info || (!mes.length ? '' : !S.svc ? 'Activez « En service » pour voir le trajet.' : !S.moi ? 'Le trajet s\'affichera dès que votre position sera trouvée.' : 'Calcul du trajet…');
       } else { const s = solde(l.id), t0 = jour(Date.now()), auj = s.liv.filter(c => c.livreeLe >= t0);
-        $('#lst').innerHTML = `<h3>Aujourd'hui</h3><div class="kpis"><div class="kpi"><small>Courses livrées</small><b>${auj.length}</b></div>
+        const meL = S.livreurs.find(x => x.id === l.id) || l;
+        const ntfyHtml = (S.p.ntfyActif && S.p.ntfyCanal && !meL.ntfyOk ? '<p class="alerte">⚠️ Obligatoire pour travailler avec E-Courses : installez ntfy et abonnez-vous à vos 2 canaux ci-dessous, puis faites vérifier par le patron.</p>' : '') + (S.p.ntfyActif && S.p.ntfyCanal ? `<div class="card"><h3>🔔 Être alerté téléphone verrouillé</h3><p class="note">Installez l'application <b>ntfy</b>, touchez <b>+</b> et abonnez-vous à ces 2 canaux (avec « livraison instantanée ») :</p><p class="lienTxt">${esc(S.p.ntfyCanal)}</p><p class="lienTxt">${esc(canalLv(l.id))}</p><p class="note">Dans les réglages de ntfy, activez la sonnerie insistante : votre téléphone sonnera comme un appel, même écran éteint.</p><p class="note">🔋 Paramètres du téléphone → Applications → ntfy → Batterie → « Non restreinte ».</p><button class="btn s jaune" data-a="testLv" data-id="${l.id}">🔔 Tester mes alertes</button></div>` : '');
+        $('#lst').innerHTML = ntfyHtml + `<h3>Aujourd'hui</h3><div class="kpis"><div class="kpi"><small>Courses livrées</small><b>${auj.length}</b></div>
           <div class="kpi"><small>Frais</small><b>${F(sum(auj, c => c.frais))}</b></div><div class="kpi"><small>Encaissé</small><b>${F(sum(auj, c => c.encaisse))}</b></div></div>
           ${(() => { const mo = moyenne(l.id); return mo ? `<p>Ma note : <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} / 5 (${mo.n} avis)</p>` : ''; })()}<h3>Ma caisse (depuis le début)</h3><div class="kpis"><div class="kpi"><small>Encaissé</small><b>${F(s.enc)}</b></div>
           ${s.part ? `<div class="kpi"><small>Ma commission</small><b>${F(s.part)}</b></div>` : ''}
@@ -835,7 +893,8 @@ function carteLivraison(c, admin){ const fin = ['livree','annulee'].includes(c.s
     ${admin && !fin ? `<div class="row"><select data-c="attrib" data-id="${c.id}" style="flex:1"><option value="">${c.livreurId ? 'Changer de livreur…' : 'Attribuer à…'}</option>${lvOpts()}</select>
       <button class="btn s rouge" data-a="annulerP" data-id="${c.id}">Annuler</button></div>` : ''}
     ${admin && fin ? `<button class="lien note" data-a="suppr" data-id="${c.id}">Supprimer</button>` : ''}</div>`; }
-function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', {r:'patron'});
+function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true);
+  if(!S.p.ntfyCanal && DB) DB.set('params', 'general', {ntfyCanal:'ecourses-' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4)}); S.tab = tab; ls.set('role', {r:'patron'});
   const nbP = S.plaintes.filter(x => x.statut !== 'resolue').length;
   const T = tabs([['dir','📡 En direct'],['liv','📦 Livraisons'],['lvr','🛵 Livreurs'],['pla','⭐ Avis & plaintes' + (nbP ? ' (' + nbP + ')' : '')],['cai','💰 Caisse'],['rap','📊 Rapports'],['reg','⚙️ Réglages']], tab);
   const V = {
@@ -861,7 +920,8 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
     refresh(){ $('#lst').innerHTML = S.livreurs.slice().sort((a,b) => a.nom.localeCompare(b.nom)).map(l => { const p = S.positions.find(x => x.id === l.id);
       const on = p && p.enService && Date.now() - p.t < 10 * 60000;
       return `<div class="card"><div class="row sb"><span class="row" style="margin:0">${avatar(l.id, 'moyen') || '<span class="avatar moyen vide">📷</span>'}<b>${esc(l.nom)}</b></span><span class="pill ${l.actif === false ? 'annulee' : on ? 'livree' : 'attente'}">${l.actif === false ? 'Désactivé' : on ? 'En service' : 'Hors service'}</span></div>
-        <p>${esc(l.tel)} · PIN ${esc(l.pin)}${(() => { const mo = moyenne(l.id); return mo ? ` · <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} (${mo.n})` : ''; })()}</p><p class="note">${solde(l.id).liv.length} course(s) livrée(s)${p && p.t ? ' · vu le ' + D(p.t) + ' à ' + H(p.t) : ''}</p>
+        ${S.p.ntfyCanal ? `<p class="note">🔔 Canal ntfy : <b>${esc(canalLv(l.id))}</b></p><p>${l.ntfyOk ? '<span class="badge vert">🔔 Alertes ntfy vérifiées</span>' : '<span class="badge" style="background:var(--r)">⚠️ Alertes ntfy non vérifiées</span>'}</p>
+          <div class="row"><button class="btn s" data-a="testLv" data-id="${l.id}">🔔 Tester</button><button class="btn s ${l.ntfyOk ? '' : 'jaune'}" data-a="ntfyOk" data-id="${l.id}">${l.ntfyOk ? 'Retirer la vérification' : '✓ Son téléphone a sonné'}</button></div>` : ''}<p>${esc(l.tel)} · PIN ${esc(l.pin)}${(() => { const mo = moyenne(l.id); return mo ? ` · <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} (${mo.n})` : ''; })()}</p><p class="note">${solde(l.id).liv.length} course(s) livrée(s)${p && p.t ? ' · vu le ' + D(p.t) + ' à ' + H(p.t) : ''}</p>
         <div class="row">${contact(l.tel)}<button class="btn s" data-a="lvEdit" data-id="${l.id}">Modifier</button>
         <button class="btn s ${l.actif === false ? '' : 'rouge'}" data-a="lvToggle" data-id="${l.id}">${l.actif === false ? 'Réactiver' : 'Désactiver'}</button></div></div>`; }).join('')
       || '<p class="vide">Aucun livreur. Ajoutez le premier.</p>'; }},
@@ -930,8 +990,23 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
       <label>Livraison offerte toutes les N livraisons (0 = non)<input name="fidelite" type="number" min="0" value="${+S.p.fidelite || 0}"></label>
       <div class="choix"><label><input type="checkbox" name="masquer" ${S.p.masquer ? 'checked' : ''}>Cacher les numéros livreur ↔ client en dehors des courses</label></div>
       <label>Numéro Mobile Money de l'entreprise (le client paie l'entreprise, pas le livreur)<input name="momo" type="tel" value="${esc(S.p.momo)}"></label>
+      <label>Rappeler le livreur (et prévenir le patron) toutes les<select name="rappelMin">${[5,10,15,20].map(n => `<option value="${n}" ${(+S.p.rappelMin || 10) === n ? 'selected' : ''}>${n} minutes</option>`).join('')}</select></label>
+      <p class="note">Tant que le colis n'est pas récupéré, le livreur est rappelé (sonnerie + ntfy). Dès le 2ᵉ rappel, le patron est prévenu. Les demandes que personne n'accepte sont aussi rappelées à tous.</p>
       <label>Relancer un client régulier après combien de jours sans commande<input name="relanceJours" type="number" min="1" value="${+S.p.relanceJours || 14}"></label>
       <p class="note">Les livreurs en service sont surveillés : s'ils restent plus de 5 min chez un client régulier sans course, vous recevez une alerte. Prévenez-les : cela suffit souvent à décourager les arrangements.</p></fieldset>
+      <fieldset class="sec s-delai"><legend>🔔 Alertes téléphone verrouillé (ntfy)</legend>
+      <div class="choix"><label><input type="checkbox" name="ntfyActif" ${S.p.ntfyActif ? 'checked' : ''}>Envoyer les alertes vers l'application ntfy</label></div>
+      <div class="choix"><label><input type="checkbox" name="ecranAllume" ${S.p.ecranAllume ? 'checked' : ''}>Garder aussi l'écran allumé pendant le service (inutile avec ntfy, consomme la batterie)</label></div>
+      <p class="note">🔋 Pour que ntfy sonne écran éteint : Paramètres du téléphone → Applications → ntfy → Batterie → « Non restreinte ». ntfy consomme très peu.</p>
+      <p class="note">1) Installez <b>ntfy</b> (Play Store / App Store) sur le téléphone du patron et de chaque livreur. 2) Dans ntfy, touchez <b>+</b>, écrivez le nom du canal, cochez « livraison instantanée », puis <b>S'abonner</b>. 3) Dans les réglages de ntfy, activez la sonnerie <b>insistante</b> pour la priorité maximale : le téléphone sonnera en boucle comme un appel.</p>
+      <p><b>Canal patron + livreurs</b> (nouvelles demandes) :</p><p class="lienTxt">${esc(S.p.ntfyCanal || '…')}</p>
+      <p><b>Canal du patron seul</b> (réclamations, alertes) :</p><p class="lienTxt">${esc(canalPatron())}</p>
+      <p class="note">Chaque livreur a aussi son canal personnel : il le trouve dans « Mon bilan », et vous dans l'onglet Livreurs.</p>
+      <p class="soustitre">Alertes ntfy par livreur (cochez pour activer) :</p>
+      ${S.livreurs.filter(l => l.actif !== false).map(l => `<div class="row sb lvNtfy"><label class="row" style="margin:0;font-weight:600"><input type="checkbox" data-c="ntfyLv" data-id="${l.id}" ${l.ntfyOn !== false ? 'checked' : ''} style="width:22px;min-height:22px;margin:0">${avatar(l.id, 'mini')}${esc(l.nom)}</label>
+        <span class="badge ${l.ntfyOk ? 'vert' : ''}" style="${l.ntfyOk ? '' : 'background:var(--r)'}">${l.ntfyOk ? '✓ vérifié' : 'non vérifié'}</span><button type="button" class="btn s" data-a="testLv" data-id="${l.id}">🔔 Tester</button></div>`).join('') || '<p class="note">Aucun livreur.</p>'}
+      <p class="note">Décoché : ce livreur ne reçoit plus ses alertes personnelles (courses attribuées, rappels, messages). Pour les nouvelles demandes, il se désabonne lui-même du canal général dans ntfy.</p>
+      <button type="button" class="btn s" data-a="testNtfy">🔔 Envoyer une alerte de test</button></fieldset>
       <label>Zones et tarifs (une par ligne : Nom = prix)<textarea name="zones" rows="9">${esc(S.p.zones.map(z => z.n + ' = ' + z.p).join('\n'))}</textarea></label>
       <p class="note">Les tarifs proposés au départ sont des exemples à adapter.</p>
       <button type="button" class="btn plein" data-a="lieux">📍 Lieux connus (${S.lieux.length})</button>
@@ -942,18 +1017,22 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
     init(){ const f = $('#f'); f.onsubmit = async ev => { ev.preventDefault(); const d = Object.fromEntries(new FormData(f));
       const zones = d.zones.split('\n').map(x => x.split('=')).filter(x => x.length === 2 && x[0].trim()).map(([n,p]) => ({n:n.trim(), p:+num(p) || 0}));
       if(!zones.length) return toast('Ajoutez au moins une zone');
-      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), pinPatron:d.pinPatron.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momo:(d.momo || '').trim(), relanceJours:+d.relanceJours || 14, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
+      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), pinPatron:d.pinPatron.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momo:(d.momo || '').trim(), relanceJours:+d.relanceJours || 14, rappelMin:+d.rappelMin || 10, ntfyActif:!!d.ntfyActif, ecranAllume:!!d.ecranAllume, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
   }[tab];
   show(T + `<div class="vue t-${tab}">` + V.h + '</div>', V); }
 
 // ---------- actions ----------
 const ACT = {
+  testLv(id){ const l = S.livreurs.find(x => x.id === id); ntfy(canalLv(id), '🔔 Test E-Courses', `Bonjour ${l ? l.nom : ''}, vos alertes fonctionnent.`, 5, '#livreur'); ntfy(S.p.ntfyCanal, '🔔 Test E-Courses (canal général)', 'Canal des nouvelles demandes : OK.', 5); toast('Alerte de test envoyée : le téléphone doit sonner'); },
+  async ntfyOk(id){ const l = S.livreurs.find(x => x.id === id); await DB.set('livreurs', id, {ntfyOk: !l.ntfyOk}); },
+  testNtfy(){ ntfy(S.p.ntfyCanal, '🔔 Test E-Courses', 'Si vous lisez ceci, les alertes fonctionnent.', 5); ntfy(canalPatron(), '🔔 Test E-Courses (patron)', 'Canal du patron : OK.', 5); toast('Alerte de test envoyée'); },
   voirPhoto(id){ const l = S.livreurs.find(x => x.id === id); if(!l || !l.photo) return; modal(`<h2>${esc(l.nom)}</h2><img src="${l.photo}" alt="" style="width:100%;border-radius:14px"><button class="btn plein" data-a="fermer">Fermer</button>`); },
   ferAl(k){ sansAlerte(k); },
   alarmeOk(){ fermer(); setTimeout(surveiller, 400); },   // affiche l'alarme suivante s'il y en a
   async envMsg(id, el){ const de = el.dataset.de, inp = $('#mTxt-' + de), txt = (el.dataset.t || (inp && inp.value) || '').trim(); if(!txt) return toast('Écrivez un message');
     const a = el.dataset.to || (document.querySelector('[name=dst]:checked') || {}).value || 'client', c = S.livraisons.find(x => x.id === id);
     await DB.add('messages', {livraisonId:id, de, a, txt, nom: de === 'livreur' && S.lv ? S.lv.nom : '', t:Date.now()});
+    if(de !== 'livreur' && c && c.livreurId) ntfy(canalLv(c.livreurId), de === 'dest' ? '💬 Message du receveur' : "💬 Message de l'expéditeur", c.code + ' : ' + txt, 4, '#livreur');
     if(inp && !el.dataset.t) inp.value = ''; toast('Message envoyé ✓');
     if(de === 'livreur'){ fermer();
       if(a === 'dest' && c && c.destTel) modal(`<h2>Message envoyé ✓</h2><p>Le receveur n'a peut-être pas ouvert la page de suivi. Envoyez-lui aussi ce message par WhatsApp :</p>
@@ -971,6 +1050,7 @@ const ACT = {
       <label>Téléphone du receveur<input name="t" type="tel" required></label><button class="btn jaune plein">Continuer</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`,
       () => { $('#fm').onsubmit = async ev => { ev.preventDefault(); await DB.set('livraisons', id, {destTel:$('#fm').t.value.trim()}); fermer(); setTimeout(() => ACT.payeur(v), 300); }; });
     await DB.set('livraisons', id, {payeur:qui, payeurLe:Date.now(), payeurPar:'client'});
+    { const t = `${c.code} : c'est ${qui === 'dest' ? 'le RECEVEUR' : "l'EXPÉDITEUR"} qui paie la livraison.`; ntfy(canalPatron(), '💰 Paiement choisi par le client', t, 4, '#patron'); if(c.livreurId) ntfy(canalLv(c.livreurId), '💰 Paiement choisi par le client', t, 4, '#livreur'); }
     if(qui === 'dest') ACT.prevenirDest(id);
     else alarme('✅ Choix envoyé', `${c.livreurNom ? 'Le patron et le livreur ' + c.livreurNom + ' sont prévenus' : 'Le patron est prévenu'} : vous payez ${F(c.frais)} au livreur.`, true); },
   prevenirDest(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return; const a = aPayer({...c, payeur:'dest'});
@@ -985,7 +1065,7 @@ const ACT = {
   newCmd(){ ls.set('cmd', null); commande(); },
   async annulerC(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'client'}); toast('Demande annulée'); },
   async prendre(id){ const l = S.lv;
-    try { await DB.prendre(id, {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now()});
+    try { await DB.prendre(id, {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), rappels:0, rappelLe:0});
       toast('Course acceptée'); if(!S.svc) service(l, true); livreurApp(l, 'mes'); } catch(er){ toast(er.message); } },
   async demarrer(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return;
     await DB.set('livraisons', id, c.statut === 'acceptee' ? {demarreLe:Date.now()} : {demarreLivLe:Date.now()});
@@ -999,6 +1079,7 @@ const ACT = {
       <button class="btn rouge plein">Envoyer la réclamation</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
       const f = $('#fm'); f.onsubmit = async ev => { ev.preventDefault(); const d = Object.fromEntries(new FormData(f));
         await DB.add('plaintes', {livraisonId:id, code:c.code, qui, nom:d.nom, tel:d.tel, motif:d.motif, texte:d.texte, statut:'ouverte', creeLe:Date.now(), livreurId:c.livreurId || '', livreurNom:c.livreurNom || ''});
+        ntfy(canalPatron(), '📣 Nouvelle réclamation', `${c.code} — ${d.motif} (${qui === 'dest' ? 'receveur' : 'expéditeur'})`, 4, '#patron');
         fermer(); toast('Réclamation envoyée. Le responsable va vous recontacter.'); if(S.role === 'dest') avisDest(id); }; }); },
   liens(){ const base = location.href.split('#')[0], L3 = [['client','Lien pour les clients','Ouvre directement « J\'envoie un colis ». À mettre sur les affiches, flyers, statuts WhatsApp, Facebook.',
       `Envoyez vos colis avec ${S.p.entreprise} ! Un livreur vient chercher votre colis et vous le suivez en direct : `],
@@ -1065,6 +1146,8 @@ const ACT = {
         await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
           colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, creeLe:Date.now(), source:'patron',
           ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})});
+        const res = resumeCmd({departTxt:d.rep, zone:d.zone, frais:+d.frais || 0, limiteRecup:lim});
+        if(l) ntfy(canalLv(l.id), '📋 Le patron vous attribue une course', res, 5, '#livreur'); else ntfy(S.p.ntfyCanal, '🔔 Nouvelle demande de livraison', res, 5, '#livreur');
         fermer(); toast('Livraison créée'); memoriser(d.rep, dep, ''); memoriser(d.dest, dst, d.zone); }; }); },
   lvEdit(id){ const l = S.livreurs.find(x => x.id === id) || {};
     modal(`<h2>${id ? 'Modifier' : 'Nouveau'} livreur</h2><form id="fm" class="form">
@@ -1091,10 +1174,12 @@ const ACT = {
     S.rDu = iso(a); S.rAu = iso(b); $('#rDu').value = S.rDu; $('#rAu').value = S.rAu; VUE.refresh(); },
   copier(){ navigator.clipboard.writeText(S.rapTxt).then(() => toast('Rapport copié'), () => toast('Copie impossible sur cet appareil')); }
 };
-const CH = { async plStatut(id, el){ await DB.set('plaintes', id, {statut:el.value}); toast('Statut mis à jour'); },
+const CH = { async ntfyLv(id, el){ await DB.set('livreurs', id, {ntfyOn: el.checked}); toast(el.checked ? 'Alertes ntfy activées' : 'Alertes ntfy désactivées'); },
+  async plStatut(id, el){ await DB.set('plaintes', id, {statut:el.value}); toast('Statut mis à jour'); },
   delai(id, el){ const h = el.form.querySelector('.hPrecise'); h.hidden = el.value !== 'h'; if(!h.hidden) h.querySelector('input').focus(); },
   async attrib(id, el){ const l = S.livreurs.find(x => x.id === el.value); if(!l) return; const c = S.livraisons.find(x => x.id === id);
-  await DB.set('livraisons', id, {statut: c.statut === 'attente' ? 'acceptee' : c.statut, livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron', demarreLe:null}); toast('Attribuée à ' + l.nom); } };
+  ntfy(canalLv(l.id), '📋 Le patron vous attribue une course', c.code + ' : ' + resumeCmd(c), 5, '#livreur');
+  await DB.set('livraisons', id, {statut: c.statut === 'attente' ? 'acceptee' : c.statut, livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron', demarreLe:null, rappels:0, rappelLe:0}); toast('Attribuée à ' + l.nom); } };
 document.addEventListener('click', ev => { const b = ev.target.closest('[data-a]'); if(!b || !ACT[b.dataset.a]) return; ev.preventDefault(); ACT[b.dataset.a](b.dataset.id, b); });
 document.addEventListener('submit', async ev => { const f = ev.target; if(!f.classList.contains('avisF')) return; ev.preventDefault();
   const note = +(new FormData(f).get('note') || 0); if(!note) return toast('Choisissez une note');
