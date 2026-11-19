@@ -248,7 +248,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '27';
+const VERSION = '28';
 // ----- mention du concepteur (KANT) -----
 const CONCEPTEUR = {nom:'KANT', tel:'+229 0197897521'};
 const avecMention = () => ls.get('mention', true) !== false;   // coupée seulement par la licence « marque blanche »
@@ -321,7 +321,7 @@ const installee = () => matchMedia('(display-mode: standalone)').matches || navi
 if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); invite = e; document.querySelectorAll('.btnInst').forEach(b => b.hidden = false); });
 addEventListener('appinstalled', () => { invite = null; document.querySelectorAll('.btnInst').forEach(b => b.hidden = true); toast('✅ E-Courses est installée sur votre téléphone'); });
-const btnInstaller = () => installee() ? '' : `<button class="btn plein btnInst instal" data-a="installer" ${invite || iPhone() ? '' : 'hidden'}>📲 Installer l'application E-Courses</button>`;
+const btnInstaller = () => installee() ? '' : `<button class="btn plein btnInst instal" data-a="installer" ${invite || iPhone() ? '' : 'hidden'}>📲 Installer l'application ${esc(S.p.entreprise)}</button>`;
 const STATUTS = {attente:'En attente', acceptee:'Livreur trouvé', recuperee:'Colis récupéré', livree:'Livré', annulee:'Annulé'};
 const S = {livraisons:[], livreurs:[], positions:[], versements:[], params:[], plaintes:[], lieux:[], messages:[], alertes:[], p:{...DEF}, ok:{}, svc:false, moi:null};
 let VUE = {}, DB;
@@ -1046,7 +1046,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true);
 // ---------- actions ----------
 const ACT = {
   async installer(){ if(invite){ invite.prompt(); const r = await invite.userChoice; if(r.outcome === 'accepted') invite = null; return; }
-    modal(`<h2>📲 Installer E-Courses</h2>${iPhone() ? '<p>Dans Safari, touchez le bouton <b>Partager</b> (carré avec une flèche), puis <b>« Sur l\'écran d\'accueil »</b>, puis <b>Ajouter</b>.</p>'
+    modal(`<h2>📲 Installer ${esc(S.p.entreprise)}</h2>${iPhone() ? '<p>Dans Safari, touchez le bouton <b>Partager</b> (carré avec une flèche), puis <b>« Sur l\'écran d\'accueil »</b>, puis <b>Ajouter</b>.</p>'
       : '<p>Dans Chrome, touchez <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b>.</p><p class="note">Si vous voyez seulement « Ajouter à l\'écran d\'accueil », rechargez la page et attendez quelques secondes.</p>'}<button class="btn plein" data-a="fermer">Fermer</button>`); },
   testLv(id){ const l = S.livreurs.find(x => x.id === id); ntfy(canalLv(id), '🔔 Test E-Courses', `Bonjour ${l ? l.nom : ''}, vos alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.`, 5, '#livreur'); toast('Une alerte de test envoyée : le téléphone doit sonner'); },
   async ntfyOk(id){ const l = S.livreurs.find(x => x.id === id); await DB.set('livreurs', id, {ntfyOk: !l.ntfyOk}); },
