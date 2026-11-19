@@ -255,7 +255,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '30';
+const VERSION = '31';
 // ----- mention du concepteur (KANT) -----
 const CONCEPTEUR = {nom:'KANT', tel:'+229 0197897521'};
 const avecMention = () => ls.get('mention', true) !== false;   // coupée seulement par la licence « marque blanche »
@@ -1043,6 +1043,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true);
       <p class="note">Les tarifs proposés au départ sont des exemples à adapter.</p>
       <button type="button" class="btn plein" data-a="lieux">📍 Lieux connus (${S.lieux.length})</button>
       <button type="button" class="btn plein" data-a="liens">🔗 Liens à partager et QR code</button>
+      <button type="button" class="btn plein rouge" data-a="raz">🧹 Remise à zéro (effacer les essais)</button>
       <button class="btn jaune plein">Enregistrer</button></form>
       <div class="card c-det"><h3>🛠️ Assistance technique</h3><p>Concepteur : <b>${CONCEPTEUR.nom}</b> · ${CONCEPTEUR.tel}</p><p class="note">Panne, mise à jour, renouvellement de licence.</p>${contactKant()}</div>
       <p class="note">LIVRAISONS version ${VERSION} · ${DB.local ? 'Mode essai : les données restent sur ce téléphone.' : 'Base en ligne connectée.'}${CONFIG.licenceCle ? ' Licence : ' + esc(CONFIG.licenceCle) : ''}</p>
@@ -1064,6 +1065,24 @@ const ACT = {
   testNtfy(){ ntfy(canalPatron(), '🔔 Test E-Courses', 'Les alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.', 5, '#patron'); toast('Une alerte de test envoyée : touchez la notification pour arrêter la sonnerie'); },
   voirPhoto(id){ const l = S.livreurs.find(x => x.id === id); if(!l || !l.photo) return; modal(`<h2>${esc(l.nom)}</h2><img src="${l.photo}" alt="" style="width:100%;border-radius:14px"><button class="btn plein" data-a="fermer">Fermer</button>`); },
   ferAl(k){ sansAlerte(k); },
+  raz(){ const n = c => S[c].length;
+    modal(`<h2>🧹 Remise à zéro</h2><p>Cochez ce que vous voulez effacer <b>définitivement</b>, pour tous les téléphones :</p>
+      <form id="fz" class="form"><div class="choix" style="display:grid">
+        <label><input type="checkbox" name="z" value="livraisons" checked>📦 Livraisons, messages et alertes (${n('livraisons')})</label>
+        <label><input type="checkbox" name="z" value="versements" checked>💰 Caisse : versements (${n('versements')})</label>
+        <label><input type="checkbox" name="z" value="plaintes" checked>⭐ Réclamations (${n('plaintes')})</label>
+        <label><input type="checkbox" name="z" value="lieux">📍 Lieux connus (${n('lieux')})</label>
+        <label><input type="checkbox" name="z" value="livreurs">🛵 Livreurs (${n('livreurs')})</label></div>
+        <p class="note">Les réglages (nom, tarifs, code PIN, zones) sont gardés.</p>
+        <label>Pour confirmer, tapez votre code PIN patron<input name="pin" type="password" inputmode="numeric" required></label>
+        <button class="btn rouge plein">Effacer maintenant</button><button type="button" class="btn plein" data-a="fermer">Annuler</button></form>`, () => {
+      const f = $('#fz'); f.onsubmit = async ev => { ev.preventDefault();
+        if(f.pin.value !== String(S.p.pinPatron)) return toast('Code PIN incorrect');
+        const quoi = new FormData(f).getAll('z'); if(!quoi.length) return toast('Cochez au moins une case');
+        const cols = quoi.flatMap(q => q === 'livraisons' ? ['livraisons','messages','alertes'] : q === 'livreurs' ? ['livreurs','positions'] : [q]);
+        f.querySelector('.rouge').textContent = 'Effacement en cours…';
+        for(const c of cols) for(const x of S[c].slice()) await DB.del(c, x.id);
+        ['alarmes','cmd'].forEach(k => ls.set(k, null)); fermer(); toast('✅ Remise à zéro terminée'); }; }); },
   aideAl(k){ const a = AL[k]; if(!a) return; modal(`<h2>Comment faire ?</h2><p>${esc(a.aide).replace(/(\d\)) /g, '<br><br>$1 ')}</p><button class="btn plein" data-a="fermer">J'ai compris</button>`); },
   alarmeOk(){ fermer(); setTimeout(surveiller, 400); },   // affiche l'alarme suivante s'il y en a
   async envMsg(id, el){ const de = el.dataset.de, inp = $('#mTxt-' + de), txt = (el.dataset.t || (inp && inp.value) || '').trim(); if(!txt) return toast('Écrivez un message');
