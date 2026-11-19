@@ -129,7 +129,7 @@ legend{font-weight:800;padding:0 6px}
 .parti{color:var(--b);font-weight:700;margin:6px 0}
 #etat{position:fixed;left:0;right:0;bottom:0;z-index:1500;display:grid;gap:1px}
 .et{display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:15px;font-weight:600;color:#fff;box-shadow:0 -4px 16px rgba(0,0,0,.2)}
-.et span{flex:1}.et button{flex:none;background:rgba(255,255,255,.2);border:0;color:#fff;border-radius:8px;min-width:40px;min-height:40px;font:inherit;cursor:pointer}
+.et span{flex:1}.et .aideBtn{min-width:auto;padding:0 12px;font-size:14px;white-space:nowrap;background:#fff!important;color:#b45309!important;font-weight:800}.et button{flex:none;background:rgba(255,255,255,.2);border:0;color:#fff;border-radius:8px;min-width:40px;min-height:40px;font:inherit;cursor:pointer}
 .et.net,.et.bug{background:#c0392b}.et.gps{background:#d35400}.et.wait{background:#0369a1}.et.info{background:#1f9d55}
 .tags{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.tag{font-size:13px;font-weight:700;padding:4px 10px;border-radius:99px;background:#fde7d2;color:#8a3b00}
 .tag.fragile{background:#fde2e2;color:#a61b1b}.consigne{background:#eef6fd;color:#0b3d62;border-left:4px solid var(--b);padding:8px 10px;border-radius:8px;margin:6px 0;font-size:15px}
@@ -228,6 +228,13 @@ setTimeout(function(){ var s = document.getElementById('splash'); if(!s || s.cla
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
+/* Compatibilité anciens navigateurs (Samsung Internet, vieux Android) */
+if(!Object.fromEntries) Object.fromEntries = it => { const o = {}; for(const [k, v] of it) o[k] = v; return o; };
+if(!Array.prototype.flatMap) Array.prototype.flatMap = function(f){ return [].concat.apply([], this.map(f)); };
+if(!Promise.allSettled) Promise.allSettled = ps => Promise.all(ps.map(p => Promise.resolve(p).then(value => ({status:'fulfilled', value}), reason => ({status:'rejected', reason}))));
+if(!window.structuredClone) window.structuredClone = x => JSON.parse(JSON.stringify(x));
+</script>
+<script>
 // ======== CONFIGURATION — à remplir pour chaque client ========
 const CONFIG = {
   entreprise: "e-COURSE",          // nom affiché (modifiable ensuite dans Réglages)
@@ -248,7 +255,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '28';
+const VERSION = '30';
 // ----- mention du concepteur (KANT) -----
 const CONCEPTEUR = {nom:'KANT', tel:'+229 0197897521'};
 const avecMention = () => ls.get('mention', true) !== false;   // coupée seulement par la licence « marque blanche »
@@ -273,7 +280,7 @@ async function distanceKm(a, b){ if(!a || !b || a.lat == null || b.lat == null) 
   const k = [a.lat, a.lng, b.lat, b.lng].map(x => (+x).toFixed(4)).join(); if(cacheKm[k]) return cacheKm[k];
   let d = null;
   try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`);
-    const x = (await r.json()).routes?.[0]; if(x) d = x.distance / 1000; } catch {}
+    const x = ((await r.json()).routes || [])[0]; if(x) d = x.distance / 1000; } catch {}
   if(d == null) d = km(a, b) * 1.3;   // sans service routier : vol d'oiseau + 30 %
   return cacheKm[k] = Math.round(d * 10) / 10; }
 const prixKm = d => Math.max(+S.p.minimum || 0, Math.ceil(((+S.p.base || 0) + (+S.p.parKm || 0) * d) / 100) * 100);
@@ -285,7 +292,7 @@ const resteFid = tel => { const n = +S.p.fidelite || 0; return n > 1 ? n - 1 - (
 // ----- clients réguliers (repérés par leur numéro) -----
 function clientsReguliers(){ const g = {};
   S.livraisons.filter(c => c.statut === 'livree').forEach(c => { const k = telCle(c.clientTel); if(!k) return;
-    const x = g[k] ||= {nom:c.clientNom, tel:c.clientTel, n:0, der:0, pts:[], lv:{}}; x.n++; x.der = Math.max(x.der, c.livreeLe || 0);
+    const x = g[k] = g[k] || {nom:c.clientNom, tel:c.clientTel, n:0, der:0, pts:[], lv:{}}; x.n++; x.der = Math.max(x.der, c.livreeLe || 0);
     if(c.depart && c.depart.lat != null) x.pts.push(c.depart); if(c.livreurNom) x.lv[c.livreurNom] = (x.lv[c.livreurNom] || 0) + 1; });
   return Object.values(g); }
 // ----- qui paie la livraison -----
@@ -328,14 +335,14 @@ let VUE = {}, DB;
 
 // ---------- outils ----------
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const F = n => Math.round(+n || 0).toLocaleString('fr-FR') + ' F';
 const H = t => t ? new Date(t).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) : '';
 const D = t => t ? new Date(t).toLocaleDateString('fr-FR') : '';
 const jour = t => { const d = new Date(t); d.setHours(0,0,0,0); return +d; };
 const iso = t => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 const sum = (a, f) => a.reduce((s, x) => s + (+f(x) || 0), 0);
-const ls = {get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+const ls = {get(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } },
             set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }};
 function km(a, b){ if(!a || !b || a.lat == null || b.lat == null) return null;
   const r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
@@ -429,7 +436,7 @@ function presencesSuspectes(){ const out = [], clients = clientsReguliers().filt
   S.positions.filter(p => p.enService && p.lat != null && Date.now() - p.t < 10 * 60000).forEach(p => {
     const actifs = S.livraisons.filter(c => c.livreurId === p.id && ['acceptee','recuperee'].includes(c.statut)).flatMap(c => [pointRecup(c), c.destPos]).filter(x => x && x.lat != null);
     clients.forEach(cl => { const k = p.id + '|' + telCle(cl.tel), pt = cl.pts.find(x => km(p, x) < 0.08);
-      if(pt && !actifs.some(a => km(a, pt) < 0.3)){ PRES[k] ||= Date.now(); if(Date.now() - PRES[k] > 5 * 60000) out.push({p, cl, k}); } else delete PRES[k]; }); });
+      if(pt && !actifs.some(a => km(a, pt) < 0.3)){ PRES[k] = PRES[k] || Date.now(); if(Date.now() - PRES[k] > 5 * 60000) out.push({p, cl, k}); } else delete PRES[k]; }); });
   return out; }
 // ----- rappels : toutes les N minutes tant que le colis n'est pas récupéré -----
 const rappelMs = () => (+S.p.rappelMin || 10) * 60000;
@@ -505,11 +512,15 @@ const lvOpts = () => S.livreurs.filter(l => l.actif !== false).map(l => `<option
 const codeCmd = () => 'L' + Date.now().toString(36).slice(-5).toUpperCase();
 // --- messages permanents en bas de l'écran (connexion, GPS, patientez, problème) ---
 const AL = {};
-function alerte(k, msg, type, fermable){ AL[k] = {msg, type:type || k, fermable}; dessinerAl(); }
+function alerte(k, msg, type, fermable){ let aide = '';
+  if(msg.length > 110){ aide = msg; const t = type || k;
+    msg = t === 'gps' ? (S.role === 'client' || S.role === 'dest' ? '📍 Position non disponible. Cherchez votre lieu ou touchez la carte.' : '📍 Position non disponible : votre GPS ne fonctionne pas.')
+      : t === 'net' ? '📶 Pas de connexion Internet.' : msg.slice(0, 90) + '…'; }
+  AL[k] = {msg, type:type || k, fermable, aide}; dessinerAl(); }
 function sansAlerte(k){ if(AL[k]){ delete AL[k]; dessinerAl(); } }
 function dessinerAl(){ const e = $('#etat'); if(!e) return;
   const ord = {net:0, bug:1, gps:2, wait:3, info:4};
-  e.innerHTML = Object.entries(AL).sort((x, y) => (ord[x[1].type] ?? 9) - (ord[y[1].type] ?? 9)).map(([k, a]) => `<div class="et ${a.type}"><span>${esc(a.msg)}</span>${a.fermable ? `<button data-a="ferAl" data-id="${k}" aria-label="Fermer">✕</button>` : ''}</div>`).join('');
+  e.innerHTML = Object.entries(AL).sort((x, y) => ((x[1].type in ord) ? ord[x[1].type] : 9) - ((y[1].type in ord) ? ord[y[1].type] : 9)).map(([k, a]) => `<div class="et ${a.type}"><span>${esc(a.msg)}</span>${a.aide ? `<button class="aideBtn" data-a="aideAl" data-id="${k}">Comment faire ?</button>` : ''}${a.fermable ? `<button data-a="ferAl" data-id="${k}" aria-label="Fermer">✕</button>` : ''}</div>`).join('');
   document.body.style.paddingBottom = e.offsetHeight + 'px'; }
 const iPhone = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const horsChrome = () => location.protocol === 'file:' || (!iPhone() && /; wv\)|FBAN|FBAV|Instagram|WhatsApp/i.test(navigator.userAgent));
@@ -571,7 +582,7 @@ async function trajet(m, a, b){
   RT.k = k; RT.t = Date.now();
   const tracer = (pts, style) => { if(!m) return; if(RT.ligne) RT.ligne.remove(); RT.ligne = L.polyline(pts, style).addTo(m); m.fitBounds(RT.ligne.getBounds(), {padding:[40,40], maxZoom:16}); };
   try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`);
-    const x = (await r.json()).routes?.[0]; if(!x) throw 0;
+    const x = ((await r.json()).routes || [])[0]; if(!x) throw 0;
     tracer(x.geometry.coordinates.map(([lo, la]) => [la, lo]), {color:'#1fa3e0', weight:6, opacity:.9});
     RT.info = `🛵 Trajet par la route : ${kmT(x.distance / 1000)} · ≈ ${Math.round(x.duration / 60 * 1.2) + 2} min`;
   } catch { const d = km(a, b); tracer([[a.lat, a.lng], [b.lat, b.lng]], {color:'#1fa3e0', weight:4, dashArray:'8 8'});
@@ -772,8 +783,8 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       await upd(); const offerte = estOfferte(f.tel.value);
       const d = Object.fromEntries(new FormData(f)); ls.set('client', {nom:d.nom, tel:d.tel});
       const id = await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
-        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc ?? prix(d.zone), distanceKm:distCalc, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client'});
-      ntfy(S.p.ntfyCanal, '🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc ?? prix(d.zone), limiteRecup:lim}), 5, '#livreur');
+        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc != null ? fraisCalc : prix(d.zone), distanceKm:distCalc, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client'});
+      ntfy(S.p.ntfyCanal, '🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc != null ? fraisCalc : prix(d.zone), limiteRecup:lim}), 5, '#livreur');
       ls.set('cmd', id); toast('✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }}); }
 const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexOf(c.statut); if(i < 0) return ''; if(i >= 2 || (i === 1 && c.demarreLe)) i++;
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
@@ -856,7 +867,7 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; S.lv = l; S.tab = tab; 
       const avert = S.svc ? '' : '<p class="alerte">Activez « En service » pour partager votre position et voir les distances.</p>';
       if(tab === 'dem'){
         const rows = S.livraisons.filter(c => c.statut === 'attente').map(c => { const e = estimer(l.id, S.moi, pointRecup(c)); return {c, e, ok:!e || e.min <= resteMin(c)}; })
-          .sort((a,b) => resteMin(a.c) - resteMin(b.c) || (a.e?.min ?? 1e9) - (b.e?.min ?? 1e9));
+          .sort((a,b) => resteMin(a.c) - resteMin(b.c) || (a.e ? a.e.min : 1e9) - (b.e ? b.e.min : 1e9));
         const carteD = ({c, e, ok}) => `<div class="card ${ok ? '' : 'loin'}"><div class="row sb"><b>${esc(c.departTxt)}</b>${e ? `<span class="dist">≈ ${e.min} min</span>` : ''}</div>
           ${e ? (e.trajet ? `<p><span class="badge">Sur votre trajet (${detourT(e.detour)})</span></p>` : e.occupe ? '<p><span class="badge gris">Après votre course en cours</span></p>' : '') : '<p class="note">Position du client inconnue : appelez-le.</p>'}
           <p>Vers ${esc(c.zone)} — ${esc(c.dest)}</p><p class="note">${esc(c.colis || 'Colis')} · demandé à ${H(c.creeLe)}</p>${consignesHtml(c)}${payeHtml(c)}${chrono(c)}
@@ -977,7 +988,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true);
     refresh(){ const a = +new Date($('#rDu').value + 'T00:00'), b = +new Date($('#rAu').value + 'T00:00') + 864e5;
       const liv = S.livraisons.filter(c => c.statut === 'livree' && c.livreeLe >= a && c.livreeLe < b);
       const ann = S.livraisons.filter(c => c.statut === 'annulee' && c.creeLe >= a && c.creeLe < b).length;
-      const grp = k => { const g = {}; liv.forEach(c => { const x = g[c[k] || '—'] ||= {n:0, f:0, e:0, c:0}; x.n++; x.f += +c.frais || 0; x.e += +c.encaisse || 0; x.c += commission(c); }); return Object.entries(g).sort((x,y) => y[1].n - x[1].n); };
+      const grp = k => { const g = {}; liv.forEach(c => { const x = g[c[k] || '—'] = g[c[k] || '—'] || {n:0, f:0, e:0, c:0}; x.n++; x.f += +c.frais || 0; x.e += +c.encaisse || 0; x.c += commission(c); }); return Object.entries(g).sort((x,y) => y[1].n - x[1].n); };
       const avecC = S.p.part || S.p.fixe, pl = grp('livreurNom'), pz = grp('zone'), tf = sum(liv, c => c.frais), te = sum(liv, c => c.encaisse);
       const tab = (t, rows, cm) => `<h3>${t}</h3><div class="scroll"><table><tr><th></th><th class="n">Courses</th><th class="n">Frais</th><th class="n">Encaissé</th>${cm ? '<th class="n">Commission</th>' : ''}</tr>${rows.map(([k,x]) => `<tr><td>${esc(k)}</td><td class="n">${x.n}</td><td class="n">${F(x.f)}</td><td class="n">${F(x.e)}</td>${cm ? `<td class="n">${F(x.c)}</td>` : ''}</tr>`).join('')}</table></div>`;
       S.rapTxt = `Rapport ${S.p.entreprise} du ${D(a)} au ${D(b - 1)}\nLivraisons : ${liv.length} (annulées : ${ann})\nFrais : ${F(tf)}\nEncaissé : ${F(te)}\n\nPar livreur :\n` + pl.map(([k,x]) => `- ${k} : ${x.n} courses, ${F(x.f)} de frais, ${F(x.e)} encaissés${avecC ? ', commission ' + F(x.c) : ''}`).join('\n') + '\n\nPar zone :\n' + pz.map(([k,x]) => `- ${k} : ${x.n} courses, ${F(x.f)}`).join('\n');
@@ -1053,6 +1064,7 @@ const ACT = {
   testNtfy(){ ntfy(canalPatron(), '🔔 Test E-Courses', 'Les alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.', 5, '#patron'); toast('Une alerte de test envoyée : touchez la notification pour arrêter la sonnerie'); },
   voirPhoto(id){ const l = S.livreurs.find(x => x.id === id); if(!l || !l.photo) return; modal(`<h2>${esc(l.nom)}</h2><img src="${l.photo}" alt="" style="width:100%;border-radius:14px"><button class="btn plein" data-a="fermer">Fermer</button>`); },
   ferAl(k){ sansAlerte(k); },
+  aideAl(k){ const a = AL[k]; if(!a) return; modal(`<h2>Comment faire ?</h2><p>${esc(a.aide).replace(/(\d\)) /g, '<br><br>$1 ')}</p><button class="btn plein" data-a="fermer">J'ai compris</button>`); },
   alarmeOk(){ fermer(); setTimeout(surveiller, 400); },   // affiche l'alarme suivante s'il y en a
   async envMsg(id, el){ const de = el.dataset.de, inp = $('#mTxt-' + de), txt = (el.dataset.t || (inp && inp.value) || '').trim(); if(!txt) return toast('Écrivez un message');
     const a = el.dataset.to || (document.querySelector('[name=dst]:checked') || {}).value || 'client', c = S.livraisons.find(x => x.id === id);
