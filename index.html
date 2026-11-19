@@ -188,18 +188,41 @@ const CONFIG = {
 };
 // ===============================================================
 
-const DEF = {entreprise: CONFIG.entreprise, tel: '',
+const DEF = {entreprise: CONFIG.entreprise, tel: '', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '11';
+const VERSION = '12';
 // ----- types de colis (liste écrite par le patron dans Réglages) -----
 const typeColisChamp = () => `<fieldset><legend>Que faut-il livrer ?</legend><div class="choix">${S.p.typesColis.map(t => `<label><input type="radio" name="ctype" value="${esc(t)}">${esc(t)}</label>`).join('')}
   <label><input type="radio" name="ctype" value="">Autre</label></div><label>Précisez (facultatif)<input name="colis" placeholder="Ex. 2 cartons, gâteau à 3 étages…"></label></fieldset>`;
 const nomColis = f => [new FormData(f).get('ctype'), f.colis.value.trim()].filter(Boolean).join(' — ') || 'Colis';
+// ----- prix à la distance réelle (route) entre récupération et livraison -----
+const modeKm = () => S.p.tarifMode === 'km';
+const cacheKm = {};
+async function distanceKm(a, b){ if(!a || !b || a.lat == null || b.lat == null) return null;
+  const k = [a.lat, a.lng, b.lat, b.lng].map(x => (+x).toFixed(4)).join(); if(cacheKm[k]) return cacheKm[k];
+  let d = null;
+  try { const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=false`);
+    const x = (await r.json()).routes?.[0]; if(x) d = x.distance / 1000; } catch {}
+  if(d == null) d = km(a, b) * 1.3;   // sans service routier : vol d'oiseau + 30 %
+  return cacheKm[k] = Math.round(d * 10) / 10; }
+const prixKm = d => Math.max(+S.p.minimum || 0, Math.ceil(((+S.p.base || 0) + (+S.p.parKm || 0) * d) / 100) * 100);
+// ----- fidélité : la N-ième livraison d'un client est offerte -----
+const telCle = t => num(t).slice(-8);
+const livreesClient = tel => S.livraisons.filter(c => c.statut === 'livree' && telCle(c.clientTel) === telCle(tel)).length;
+const estOfferte = tel => { const n = +S.p.fidelite || 0; return n > 1 && telCle(tel).length >= 8 && (livreesClient(tel) + 1) % n === 0; };
+const resteFid = tel => { const n = +S.p.fidelite || 0; return n > 1 ? n - 1 - (livreesClient(tel) % n) : null; };
+// ----- clients réguliers (repérés par leur numéro) -----
+function clientsReguliers(){ const g = {};
+  S.livraisons.filter(c => c.statut === 'livree').forEach(c => { const k = telCle(c.clientTel); if(!k) return;
+    const x = g[k] ||= {nom:c.clientNom, tel:c.clientTel, n:0, der:0, pts:[], lv:{}}; x.n++; x.der = Math.max(x.der, c.livreeLe || 0);
+    if(c.depart && c.depart.lat != null) x.pts.push(c.depart); if(c.livreurNom) x.lv[c.livreurNom] = (x.lv[c.livreurNom] || 0) + 1; });
+  return Object.values(g); }
 // ----- qui paie la livraison -----
 const aPayer = c => { const fr = +c.frais || 0, v = +c.valeur || 0; return c.payeur === 'dest' ? {exp:0, dest:fr + v} : {exp:fr, dest:v}; };
 function payeHtml(c){ const a = aPayer(c), parts = [a.exp ? `chez l'expéditeur <b>${F(a.exp)}</b>` : '', a.dest ? `chez le receveur <b>${F(a.dest)}</b>` : ''].filter(Boolean);
   return `<p class="paye">💰 ${c.payeur === 'dest' ? '<b>Le receveur paie</b> la livraison' : "<b>L'expéditeur paie</b> la livraison"} — à encaisser : ${parts.join(' · ') || 'rien'}</p>`; }
+const momoHtml = c => S.p.momo && !['livree','annulee'].includes(c.statut) ? `<p class="paye">📱 Vous pouvez payer par <b>Mobile Money</b> au <b>${esc(S.p.momo)}</b> (${esc(S.p.entreprise)}), motif : <b>${esc(c.code)}</b>. Montrez la confirmation au livreur.</p>` : '';
 const lienColis = id => location.href.split('#')[0] + '#colis-' + id;
 // ----- messages entre livreur, expéditeur et receveur -----
 const MSG_LV = ['🛵 Je suis en route', '🚦 Les bouchons me retardent', '🌧️ La pluie me retarde, j\'arrive dès que possible', '📍 Je suis arrivé, je vous attends', '📞 Je n\'arrive pas à vous joindre, rappelez-moi', '⛽ Petit arrêt carburant, j\'arrive'];
@@ -222,7 +245,7 @@ const LOGO = document.querySelector('#splash img').src;
 for(const r of ['icon','apple-touch-icon']){ const l = document.createElement('link'); l.rel = r; l.href = LOGO; document.head.appendChild(l); }
 const bandeau = (t, c) => `<div class="bandeau ${c}"><img src="${LOGO}" alt=""><div><b>${esc(S.p.entreprise)}</b><span>${t}</span></div></div>`;
 const STATUTS = {attente:'En attente', acceptee:'Livreur trouvé', recuperee:'Colis récupéré', livree:'Livré', annulee:'Annulé'};
-const S = {livraisons:[], livreurs:[], positions:[], versements:[], params:[], plaintes:[], lieux:[], messages:[], p:{...DEF}, ok:{}, svc:false, moi:null};
+const S = {livraisons:[], livreurs:[], positions:[], versements:[], params:[], plaintes:[], lieux:[], messages:[], alertes:[], p:{...DEF}, ok:{}, svc:false, moi:null};
 let VUE = {}, DB;
 
 // ---------- outils ----------
@@ -302,12 +325,23 @@ function bip(){ try { audio = audio || new (window.AudioContext || window.webkit
 function alarme(titre, texte, bon){ bip(); try { navigator.vibrate && navigator.vibrate([500, 200, 500, 200, 800]); } catch {}
   try { if(window.Notification && Notification.permission === 'granted') new Notification(titre, {body:texte}); } catch {}
   modal(`<div class="alarme ${bon ? 'bon' : ''}"><h2>${esc(titre)}</h2><p>${esc(texte)}</p></div><button class="btn jaune plein" data-a="alarmeOk">J'ai compris</button>`); }
+const PRES = {};   // depuis quand un livreur stationne chez un client régulier sans course
+function presencesSuspectes(){ const out = [], clients = clientsReguliers().filter(x => x.n >= 2 && x.pts.length);
+  S.positions.filter(p => p.enService && p.lat != null && Date.now() - p.t < 10 * 60000).forEach(p => {
+    const actifs = S.livraisons.filter(c => c.livreurId === p.id && ['acceptee','recuperee'].includes(c.statut)).flatMap(c => [pointRecup(c), c.destPos]).filter(x => x && x.lat != null);
+    clients.forEach(cl => { const k = p.id + '|' + telCle(cl.tel), pt = cl.pts.find(x => km(p, x) < 0.08);
+      if(pt && !actifs.some(a => km(a, pt) < 0.3)){ PRES[k] ||= Date.now(); if(Date.now() - PRES[k] > 5 * 60000) out.push({p, cl, k}); } else delete PRES[k]; }); });
+  return out; }
 function surveiller(){ const vu = ls.get('alarmes', {}); let msg = null, bon = false; const dire = (k, t, x, b) => { if(vu[k] || msg) return; vu[k] = 1; msg = [t, x]; bon = !!b; };   // une alarme à la fois, les autres suivent
   const att = S.livraisons.filter(c => c.statut === 'attente');
   if(S.role === 'livreur' && S.lv && S.svc) att.forEach(c => { const e = estimer(S.lv.id, S.moi, pointRecup(c));
     if(!e || e.min <= resteMin(c)) dire('n' + c.id, '🔔 Nouvelle demande de livraison', `${c.departTxt} → ${c.zone}${e ? ` · vous y êtes en ≈ ${e.min} min` : ''}${c.limiteRecup ? ` · à récupérer avant ${H(c.limiteRecup)}` : ''}${e && e.trajet ? ' · sur votre trajet' : ''} · ${c.payeur === 'dest' ? 'payée par le receveur' : "payée par l'expéditeur"}`); });
   if(S.role === 'patron'){ att.forEach(c => { dire('n' + c.id, '🔔 Nouvelle demande', `${c.code} : ${c.departTxt} → ${c.zone}`);
       if(pointRecup(c) && S.ok.positions && !candidats(c).some(x => x.ok)) dire('x' + c.id, '⚠️ Aucun livreur à temps', `Aucun livreur en service ne peut arriver avant ${H(c.limiteRecup)} pour ${c.code} (${c.departTxt}). Appelez un livreur ou le client.`); });
+    const jr = iso(Date.now());
+    presencesSuspectes().forEach(({p, cl, k}) => { const cle = 'sus' + k + jr; if(!vu[cle + 'db']){ vu[cle + 'db'] = 1;
+        DB.add('alertes', {type:'presence', livreurId:p.id, livreurNom:p.nom, clientNom:cl.nom, clientTel:cl.tel, t:Date.now()}); }
+      dire(cle, '🕵️ Présence suspecte', `${p.nom} est resté plus de 5 min chez ${cl.nom} (client régulier) sans course E-Courses en cours.`); });
     S.plaintes.filter(x => x.statut === 'ouverte').forEach(x => dire('p' + x.id, '📣 Nouvelle réclamation', `${x.code} — ${x.motif} (${x.qui === 'dest' ? 'destinataire' : 'client'})`)); }
   // client : chaque étape de sa commande lui est annoncée
   if(S.role === 'client'){ const c = S.livraisons.find(x => x.id === ls.get('cmd', null));
@@ -349,8 +383,12 @@ function dessinerAl(){ const e = $('#etat'); if(!e) return;
   const ord = {net:0, bug:1, gps:2, wait:3, info:4};
   e.innerHTML = Object.entries(AL).sort((x, y) => (ord[x[1].type] ?? 9) - (ord[y[1].type] ?? 9)).map(([k, a]) => `<div class="et ${a.type}"><span>${esc(a.msg)}</span>${a.fermable ? `<button data-a="ferAl" data-id="${k}" aria-label="Fermer">✕</button>` : ''}</div>`).join('');
   document.body.style.paddingBottom = e.offsetHeight + 'px'; }
-function msgGps(er){ let m = !er ? '⚠️ Ce téléphone ne donne pas sa position.'
-    : er.code === 1 ? "⚠️ Activez le GPS pour cette application : dans Chrome, touchez l'icône à gauche de l'adresse → Autorisations → Position → Autoriser, puis rechargez."
+const horsChrome = () => location.protocol === 'file:' || /; wv\)|FBAN|FBAV|Instagram|WhatsApp/i.test(navigator.userAgent);
+const lienApp = () => location.href.split('#')[0];
+function precision(acc){ if(acc > 300) alerte('gps', `⚠️ Position approximative (à ${acc} m près). Activez « Position exacte » : Paramètres du téléphone → Applications → Chrome → Autorisations → Localisation.`, 'gps', true); }
+function msgGps(er){ if(horsChrome()) return `⚠️ Vous n'êtes pas dans Chrome : le GPS y est bloqué. Copiez ce lien et ouvrez-le dans Chrome : ${lienApp()}`;
+  let m = !er ? '⚠️ Ce téléphone ne donne pas sa position.'
+    : er.code === 1 ? "⚠️ Position refusée. Paramètres du téléphone → Applications → Chrome → Autorisations → Localisation → Autoriser (et « Position exacte »). Puis dans Chrome : ⋮ → Paramètres → Paramètres des sites → Position → autorisez ce site, et rechargez."
     : er.code === 2 ? '⚠️ Activez le GPS (localisation) du téléphone : faites glisser le menu du haut et touchez « Localisation ».'
     : '⏳ Votre position « Moi » n\'est pas encore trouvée… Patientez (plus rapide dehors qu\'à l\'intérieur).';
   if(er && er.code !== 3 && location.protocol === 'file:') m += " (En mode essai, le téléphone peut bloquer le GPS : il marchera une fois l'application en ligne.)";
@@ -415,7 +453,7 @@ function gps(cb){ if(!navigator.geolocation) return toast('Localisation indispon
 function stopGps(){ if(gpsId != null) navigator.geolocation.clearWatch(gpsId); gpsId = null; }
 let gpsEtat = '';
 function service(l, on){ S.svc = on; ls.set('svc', on);
-  const maj = p => { S.moi = {lat:p.coords.latitude, lng:p.coords.longitude, acc:Math.round(p.coords.accuracy), t:Date.now()}; gpsEtat = ''; sansAlerte('gps');
+  const maj = p => { S.moi = {lat:p.coords.latitude, lng:p.coords.longitude, acc:Math.round(p.coords.accuracy), t:Date.now()}; gpsEtat = ''; sansAlerte('gps'); precision(S.moi.acc);
     if(Date.now() - svcW > 10000){ svcW = Date.now(); DB.set('positions', l.id, {lat:S.moi.lat, lng:S.moi.lng, t:S.moi.t, nom:l.nom, enService:true}); }
     VUE.refresh && VUE.refresh(); };
   const err = er => { if(S.moi && er.code === 3) return;
@@ -558,13 +596,13 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
     ${colisChamp()}
     ${delaiChamp()}
     <label>Montant à encaisser chez le destinataire (0 si rien)<input name="val" type="number" min="0" value="0" inputmode="numeric"></label>
-    <div class="total">Frais de livraison <b id="fr"></b></div>
+    <div class="total">Frais de livraison <b id="fr"></b></div><p class="note" id="fid"></p>
     <fieldset><legend>Qui paie la livraison ?</legend><div class="choix">
       <label><input type="radio" name="payeur" value="client" checked>💵 Je paie la livraison</label>
       <label><input type="radio" name="payeur" value="dest">🏠 Le receveur paie</label></div><p class="note" id="payInfo"></p></fieldset>
     <button class="btn jaune plein">Appeler un livreur</button></form></div>`, {init(){
-    const m = carte('m1'), f = $('#f');
-    const setPos = p => { pos = p; sansAlerte('gps'); pin(m, 'moi', p, '#e0412b', 'Prise du colis'); m && m.setView([p.lat, p.lng], 16);
+    const m = carte('m1'), f = $('#f'); let upd = () => {}, fraisCalc = null, distCalc = null;
+    const setPos = p => { pos = p; sansAlerte('gps'); precision(p.acc); upd(); pin(m, 'moi', p, '#e0412b', 'Prise du colis'); m && m.setView([p.lat, p.lng], 16);
       $('#gInfo').textContent = p.acc ? `Position trouvée (à ${p.acc} m près). Touchez la carte pour corriger.` : 'Point placé sur la carte.'; };
     $('#bGps').onclick = () => { if(!navigator.geolocation) return toast('GPS indisponible'); $('#gInfo').textContent = 'Recherche de votre position…';
       navigator.geolocation.getCurrentPosition(p => setPos({lat:p.coords.latitude, lng:p.coords.longitude, acc:Math.round(p.coords.accuracy)}),
@@ -573,20 +611,28 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
     chercher($('#q'), $('#res'), x => { setPos({lat:x.lat, lng:x.lng}); $('#gInfo').textContent = 'Lieu placé sur la carte. Touchez la carte pour corriger si besoin.';
       if(!f.rep.value) f.rep.value = x.court; $('#m1').scrollIntoView({behavior:'smooth', block:'center'}); });
     const m2 = carte('m1b');
-    const setDest = p => { destPos = p; pin(m2, 'dest', p, '#1f9d55', 'Livraison'); m2 && m2.setView([p.lat, p.lng], 16); $('#gInfo2').textContent = 'Point de livraison placé. Touchez la carte pour corriger.'; };
+    const setDest = p => { destPos = p; upd(); pin(m2, 'dest', p, '#1f9d55', 'Livraison'); m2 && m2.setView([p.lat, p.lng], 16); $('#gInfo2').textContent = 'Point de livraison placé. Touchez la carte pour corriger.'; };
     m2 && m2.on('click', ev => setDest({lat:ev.latlng.lat, lng:ev.latlng.lng}));
     chercher($('#q2'), $('#res2'), x => { setDest({lat:x.lat, lng:x.lng}); if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse); upd();
       $('#m1b').scrollIntoView({behavior:'smooth', block:'center'}); });
-    const upd = () => { $('#fr').textContent = F(prix(f.zone.value)); const dest = f.querySelector('[name=payeur]:checked').value === 'dest', v = +f.val.value || 0;
+    upd = async () => { let fr = prix(f.zone.value), info = '';
+      if(modeKm()){ if(pos && destPos){ distCalc = await distanceKm(pos, destPos); fr = prixKm(distCalc); info = ` · ${kmT(distCalc)}`; } else fr = null; }
+      const off = estOfferte(f.tel.value); if(off && fr != null) fr = 0; fraisCalc = fr;
+      $('#fr').textContent = fr == null ? 'placez les 2 lieux' : F(fr) + info + (off ? ' 🎁' : '');
+      const rf = resteFid(f.tel.value);
+      $('#fid').innerHTML = off ? '🎁 <b>Cette livraison vous est offerte</b> grâce à votre fidélité !' : rf != null && telCle(f.tel.value).length >= 8 ? `🎁 Encore ${rf} livraison(s) avec E-Courses et la suivante est offerte.` : '';
+      const dest = f.querySelector('[name=payeur]:checked').value === 'dest', v = +f.val.value || 0, frs = fr || 0;
       f.dTel.required = dest;
-      $('#payInfo').textContent = dest ? `Le receveur remettra ${F(prix(f.zone.value) + v)} au livreur à la réception. Son téléphone est obligatoire : il sera prévenu par WhatsApp.`
-        : `Vous remettrez ${F(prix(f.zone.value))} au livreur quand il prendra le colis.${v ? ` Le receveur paiera ${F(v)} pour le colis.` : ''}`; };
-    f.zone.onchange = upd; f.val.oninput = upd; f.querySelectorAll('[name=payeur]').forEach(r => r.onchange = upd); upd(); $('#bGps').click();
+      $('#payInfo').textContent = dest ? `Le receveur remettra ${F(frs + v)} au livreur à la réception. Son téléphone est obligatoire : il sera prévenu par WhatsApp.`
+        : `Vous remettrez ${F(frs)} au livreur quand il prendra le colis.${v ? ` Le receveur paiera ${F(v)} pour le colis.` : ''}`; };
+    f.zone.onchange = upd; f.val.oninput = upd; f.tel.onchange = upd; f.querySelectorAll('[name=payeur]').forEach(r => r.onchange = upd); upd(); $('#bGps').click();
     f.onsubmit = async ev => { ev.preventDefault(); if(!pos) return toast('Indiquez où prendre le colis : bouton GPS ou touchez la carte');
       const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
+      if(modeKm() && !destPos) return toast('Placez le lieu de livraison (recherche ou carte) : le prix dépend de la distance');
+      await upd(); const offerte = estOfferte(f.tel.value);
       const d = Object.fromEntries(new FormData(f)); ls.set('client', {nom:d.nom, tel:d.tel});
       const id = await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
-        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:prix(d.zone), limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client'});
+        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc ?? prix(d.zone), distanceKm:distCalc, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client'});
       ls.set('cmd', id); toast('✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }}); }
 const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexOf(c.statut); if(i < 0) return ''; if(i >= 2 || (i === 1 && c.demarreLe)) i++;
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
@@ -610,7 +656,7 @@ function suivi(id){ let w = 0;
         + mesPlaintes(id) + (c.statut !== 'attente' ? `<button class="btn rouge plein" data-a="plainte" data-id="${id}|client">Faire une réclamation</button>` : ''); }
       const kp = c.payeur + c.statut + (c.destTel || '');
       if(kp !== this.kp){ this.kp = kp; const fin = ['livree','annulee'].includes(c.statut);
-        $('#pay').innerHTML = `<div class="card"><h3>💰 Paiement</h3>${payeHtml(c)}
+        $('#pay').innerHTML = `<div class="card"><h3>💰 Paiement</h3>${payeHtml(c)}${c.offerte ? '<p class="paye">🎁 Livraison offerte grâce à votre fidélité.</p>' : ''}${momoHtml(c)}
           ${fin ? '' : `<div class="choix"><button class="btn s ${c.payeur !== 'dest' ? 'jaune' : ''}" data-a="payeur" data-id="${id}|client">💵 Je paie la livraison</button>
           <button class="btn s ${c.payeur === 'dest' ? 'jaune' : ''}" data-a="payeur" data-id="${id}|dest">🏠 Le receveur paie</button></div>
           ${c.payeur === 'dest' ? `<button class="btn s plein" data-a="prevenirDest" data-id="${id}">📲 Prévenir le receveur par WhatsApp</button>` : ''}`}</div>`; }
@@ -618,8 +664,10 @@ function suivi(id){ let w = 0;
       if(km2 !== this.km2){ this.km2 = km2; const voir = m => m.a === 'client' || m.de === 'client';
         $('#msgs').innerHTML = c.livreurId ? `<div class="card"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'client') || '<p class="note">Aucun message pour l\'instant.</p>'}
           ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'client', MSG_CLI, 'livreur')}</div>` : ''; }
-      $('#det').innerHTML = `<div class="card">${c.livreurNom ? `<p><b>Votre livreur :</b> ${esc(c.livreurNom)}</p><div class="row">${contact(c.livreurTel)}</div>` : ''}
+      const enCourse = ['acceptee','recuperee'].includes(c.statut);
+      $('#det').innerHTML = `<div class="card">${c.livreurNom ? `<p><b>Votre livreur :</b> ${esc(c.livreurNom)}</p>${enCourse || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : '<p class="note">🔒 Le numéro du livreur n\'est visible que pendant la course.</p>'}` : ''}
         <p><b>Livrer à :</b> ${esc(c.zone)} — ${esc(c.dest)}</p>${consignesHtml(c)}<p><b>Colis :</b> ${esc(c.colis || '')}</p>
+        ${S.p.masquer ? '<p class="note">🛡️ Passez toujours par E-Courses : votre colis est suivi et garanti, et vous cumulez des livraisons offertes.</p>' : ''}
         ${c.statut === 'attente' ? `<button class="btn rouge plein" data-a="annulerC" data-id="${c.id}">Annuler la demande</button>` : ''}</div>`;
       const m = this.m; pin(m, 'dep', c.depart, '#e0412b', 'Prise du colis'); pin(m, 'cli', c.clientPos, '#2f6fdf', 'Vous'); pin(m, 'dst', c.destPos, '#1f9d55', 'Livraison');
       pin(m, 'liv', lv && lv.enService !== false && ['acceptee','recuperee'].includes(c.statut) ? lv : null, '#151515', 'Livreur');
@@ -635,7 +683,7 @@ function avisDest(id){ S.role = 'dest'; S.destId = id;
     $('#lst').innerHTML = `<p class="code">Colis ${esc(c.code)} envoyé par ${esc(c.clientNom)}</p><h2>${libelle(c)}</h2>${etapes(c)}
       <div class="card"><p><b>Colis :</b> ${esc(c.colis || '')}</p>${consignesHtml(c)}
       <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> au livreur à la réception${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
-      ${c.livreurNom ? `<p><b>Livreur :</b> ${esc(c.livreurNom)}</p><div class="row">${contact(c.livreurTel)}</div>` : '<p class="note">Un livreur va être choisi.</p>'}</div>
+      ${momoHtml(c)}${c.livreurNom ? `<p><b>Livreur :</b> ${esc(c.livreurNom)}</p>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
       ${c.livreurId ? `<div class="card"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'dest') || '<p class="note">Aucun message pour l\'instant.</p>'}
         ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'dest', MSG_DEST, 'livreur')}</div>` : ''}
       ${c.avisDest ? `<div class="card"><p>Votre avis : <span class="etoiles">${etoiles(c.avisDest.note)}</span></p><p class="note">Merci !</p></div>` : c.statut === 'livree' ? `<div class="card"><h3>Notez la livraison</h3>${formAvis(id, 'dest')}</div>` : ''}
@@ -712,7 +760,7 @@ const lvActifs = () => S.positions.filter(p => p.enService && p.lat != null && D
 function carteLivraison(c, admin){ const fin = ['livree','annulee'].includes(c.statut);
   return `<div class="card"><div class="row sb">${pillC(c)}<span class="code">${esc(c.code)} · ${D(c.creeLe)} ${H(c.creeLe)}</span></div>
     <p><b>${esc(c.clientNom)}</b> ${esc(c.clientTel)}</p><p>De : ${esc(c.departTxt)}</p><p>À : ${esc(c.zone)} — ${esc(c.dest)} ${c.destNom ? '(' + esc(c.destNom) + ')' : ''}</p>
-    ${c.colis ? `<p class="note">${esc(c.colis)}</p>` : ''}${consignesHtml(c)}${payeHtml(c)}${filMsgs(c.id, () => true, 'patron', 3)}<p>Frais ${F(c.frais)}${c.valeur ? ' · colis ' + F(c.valeur) : ''}${c.statut === 'livree' ? ` · <b>encaissé ${F(c.encaisse)}</b> à ${H(c.livreeLe)}` : ''}</p>
+    ${c.colis ? `<p class="note">${esc(c.colis)}${c.distanceKm ? ' · ' + kmT(c.distanceKm) : ''}${c.offerte ? ' · 🎁 offerte' : ''}</p>` : ''}${consignesHtml(c)}${payeHtml(c)}${filMsgs(c.id, () => true, 'patron', 3)}<p>Frais ${F(c.frais)}${c.valeur ? ' · colis ' + F(c.valeur) : ''}${c.statut === 'livree' ? ` · <b>encaissé ${F(c.encaisse)}</b> à ${H(c.livreeLe)}` : ''}</p>
     ${chrono(c)}${c.livreurNom ? `<p>Livreur : <b>${esc(c.livreurNom)}</b>${c.demarreLe && c.statut === 'acceptee' ? ' (parti à ' + H(c.demarreLe) + ')' : ''}</p>` : ''}
     ${admin && c.statut === 'attente' ? (() => { if(!pointRecup(c)) return '<p class="note">Position de récupération inconnue : estimation impossible.</p>';
       const cs = candidats(c), ok = cs.filter(x => x.ok), ko = cs.filter(x => !x.ok);
@@ -753,7 +801,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
         <button class="btn s ${l.actif === false ? '' : 'rouge'}" data-a="lvToggle" data-id="${l.id}">${l.actif === false ? 'Réactiver' : 'Désactiver'}</button></div></div>`; }).join('')
       || '<p class="vide">Aucun livreur. Ajoutez le premier.</p>'; }},
   pla: {h:'<div class="pad" id="lst"></div>',
-    refresh(){ const k = JSON.stringify(S.plaintes) + S.livraisons.length; if(k === this.k) return; this.k = k;
+    refresh(){ const k = JSON.stringify(S.plaintes) + S.livraisons.length + S.alertes.length; if(k === this.k) return; this.k = k;
       const ord = {ouverte:0, encours:1, resolue:2}, pl = S.plaintes.slice().sort((a,b) => ord[a.statut] - ord[b.statut] || b.creeLe - a.creeLe);
       const carteP = x => `<div class="card plainte"><div class="row sb"><b>${esc(x.motif)}</b><span class="code">${esc(x.code)} · ${D(x.creeLe)} ${H(x.creeLe)}</span></div>
         <p>De : <b>${esc(x.nom || '')}</b> (${x.qui === 'dest' ? 'destinataire' : 'client'}) · livreur : ${esc(x.livreurNom || '—')}</p><p>${esc(x.texte)}</p>
@@ -764,7 +812,9 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
       const ouv = pl.filter(x => x.statut !== 'resolue'), res = pl.filter(x => x.statut === 'resolue');
       const notes = S.livreurs.map(l => ({l, mo:moyenne(l.id)})).filter(x => x.mo).sort((a,b) => b.mo.m - a.mo.m);
       const coms = S.livraisons.flatMap(c => [['client', c.avisClient, c], ['destinataire', c.avisDest, c]]).filter(([, a]) => a && a.txt).sort((a,b) => b[1].t - a[1].t).slice(0, 15);
-      $('#lst').innerHTML = `<h3>Réclamations à traiter</h3>${ouv.map(carteP).join('') || '<p class="note">Aucune.</p>'}
+      const al = S.alertes.slice().sort((a,b) => b.t - a.t).slice(0, 20);
+      $('#lst').innerHTML = `${al.length ? `<h3>🕵️ Alertes de contournement</h3>${al.map(x => `<div class="card plainte"><b>${esc(x.livreurNom)}</b> est resté plus de 5 min chez <b>${esc(x.clientNom)}</b> sans course <span class="note">· ${D(x.t)} ${H(x.t)}</span><div class="row">${contact(x.clientTel)}</div></div>`).join('')}` : ''}
+        <h3>Réclamations à traiter</h3>${ouv.map(carteP).join('') || '<p class="note">Aucune.</p>'}
         ${res.length ? `<details><summary>${res.length} réclamation(s) résolue(s)</summary>${res.map(carteP).join('')}</details>` : ''}
         <h3>Notes des livreurs</h3>${notes.length ? `<table><tr><th>Livreur</th><th>Note</th><th class="n">Avis</th></tr>${notes.map(x => `<tr><td>${esc(x.l.nom)}</td><td><span class="etoiles">${etoiles(x.mo.m)}</span> ${x.mo.m.toFixed(1)}</td><td class="n">${x.mo.n}</td></tr>`).join('')}</table>` : '<p class="note">Pas encore d\'avis.</p>'}
         <h3>Derniers commentaires</h3>${coms.map(([qui, a, c]) => `<div class="card"><span class="etoiles">${etoiles(a.note)}</span> <span class="note">${qui} · ${esc(c.code)} · ${esc(c.livreurNom || '')}</span><p>${esc(a.txt)}</p></div>`).join('') || '<p class="note">Aucun.</p>'}`; }},
@@ -788,6 +838,13 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
       $('#lst').innerHTML = `<div class="kpis"><div class="kpi fort"><small>Livraisons</small><b>${liv.length}</b></div><div class="kpi"><small>Frais</small><b>${F(tf)}</b></div>
         <div class="kpi"><small>Encaissé</small><b>${F(te)}</b></div><div class="kpi"><small>Annulées</small><b>${ann}</b></div></div>
         ${liv.length ? tab('Par livreur', pl, avecC) + tab('Par zone', pz) : '<p class="vide">Aucune livraison sur cette période.</p>'}
+        ${(() => { const lim = Date.now() - (+S.p.relanceJours || 14) * 864e5, cl = clientsReguliers();
+          const rel = cl.filter(x => x.n >= 3 && x.der < lim).sort((a,b) => b.n - a.n);
+          const risq = cl.filter(x => x.n >= 3).map(x => { const [nom, n] = Object.entries(x.lv).sort((a,b) => b[1] - a[1])[0] || ['', 0]; return {...x, lvNom:nom, part:n / x.n}; }).filter(x => x.part >= .7);
+          return `<h3>📞 Clients réguliers à relancer</h3><p class="note">Au moins 3 livraisons, mais plus aucune commande depuis ${+S.p.relanceJours || 14} jours : ils passent peut-être par un livreur en direct.</p>
+            ${rel.map(x => `<div class="card"><b>${esc(x.nom)}</b> · ${x.n} livraisons · dernière le ${D(x.der)}<div class="row">${contact(x.tel)}</div></div>`).join('') || '<p class="note">Aucun pour l\'instant.</p>'}
+            <h3>⚠️ Clients toujours servis par le même livreur</h3><p class="note">Risque de contact direct : pensez à varier les livreurs pour ces clients.</p>
+            ${risq.map(x => `<p>• <b>${esc(x.nom)}</b> : ${Math.round(x.part * 100)} % de ses livraisons par <b>${esc(x.lvNom)}</b></p>`).join('') || '<p class="note">Aucun.</p>'}`; })()}
         <div class="row" style="margin-top:14px"><a class="btn jaune" href="${wa('', S.rapTxt)}">Partager sur WhatsApp</a><button class="btn" data-a="copier">Copier le texte</button></div>`; }},
   reg: {h:`<div class="pad"><form id="f" class="form">
       <label>Nom de l'entreprise<input name="entreprise" required value="${esc(S.p.entreprise)}"></label>
@@ -798,6 +855,18 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
       <label>Et/ou montant fixe par course livrée (F CFA)<input name="fixe" type="number" min="0" value="${+S.p.fixe || 0}"></label>
       <p class="note">Mettez 0 et 0 si vos livreurs sont salariés.</p></fieldset>
       <label>Types de colis proposés aux clients (un par ligne)<textarea name="typesColis" rows="7">${esc(S.p.typesColis.join('\n'))}</textarea></label>
+      <fieldset><legend>Calcul du prix de livraison</legend>
+      <label>Mode de calcul<select name="tarifMode"><option value="zone" ${!modeKm() ? 'selected' : ''}>Par zone (tarifs ci-dessous)</option><option value="km" ${modeKm() ? 'selected' : ''}>Selon la distance réelle récupération → livraison</option></select></label>
+      <label>Prix de départ (F)<input name="base" type="number" min="0" value="${+S.p.base || 0}"></label>
+      <label>Prix par kilomètre (F)<input name="parKm" type="number" min="0" value="${+S.p.parKm || 0}"></label>
+      <label>Prix minimum (F)<input name="minimum" type="number" min="0" value="${+S.p.minimum || 0}"></label>
+      <p class="note">Exemple : départ ${F(S.p.base)} + ${F(S.p.parKm)}/km → 5 km = ${F(prixKm(5))}. Le prix ne dépend plus de la position du siège ni du livreur.</p></fieldset>
+      <fieldset><legend>Fidélité et anti-contournement</legend>
+      <label>Livraison offerte toutes les N livraisons (0 = non)<input name="fidelite" type="number" min="0" value="${+S.p.fidelite || 0}"></label>
+      <div class="choix"><label><input type="checkbox" name="masquer" ${S.p.masquer ? 'checked' : ''}>Cacher les numéros livreur ↔ client en dehors des courses</label></div>
+      <label>Numéro Mobile Money de l'entreprise (le client paie l'entreprise, pas le livreur)<input name="momo" type="tel" value="${esc(S.p.momo)}"></label>
+      <label>Relancer un client régulier après combien de jours sans commande<input name="relanceJours" type="number" min="1" value="${+S.p.relanceJours || 14}"></label>
+      <p class="note">Les livreurs en service sont surveillés : s'ils restent plus de 5 min chez un client régulier sans course, vous recevez une alerte. Prévenez-les : cela suffit souvent à décourager les arrangements.</p></fieldset>
       <label>Zones et tarifs (une par ligne : Nom = prix)<textarea name="zones" rows="9">${esc(S.p.zones.map(z => z.n + ' = ' + z.p).join('\n'))}</textarea></label>
       <p class="note">Les tarifs proposés au départ sont des exemples à adapter.</p>
       <button type="button" class="btn plein" data-a="lieux">📍 Lieux connus (${S.lieux.length})</button>
@@ -808,7 +877,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; S.tab = tab; ls.set('role', 
     init(){ const f = $('#f'); f.onsubmit = async ev => { ev.preventDefault(); const d = Object.fromEntries(new FormData(f));
       const zones = d.zones.split('\n').map(x => x.split('=')).filter(x => x.length === 2 && x[0].trim()).map(([n,p]) => ({n:n.trim(), p:+num(p) || 0}));
       if(!zones.length) return toast('Ajoutez au moins une zone');
-      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), pinPatron:d.pinPatron.trim(), part:+d.part || 0, fixe:+d.fixe || 0, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
+      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), pinPatron:d.pinPatron.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momo:(d.momo || '').trim(), relanceJours:+d.relanceJours || 14, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
   }[tab];
   show(T + V.h, V); }
 
@@ -919,13 +988,16 @@ const ACT = {
       <label>Frais de livraison<input name="frais" type="number" min="0"></label>
       <label>Attribuer à<select name="lv"><option value="">Laisser en attente (les livreurs la verront)</option>${lvOpts()}</select></label>
       <button class="btn jaune plein">Créer</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
-      const f = $('#fm'); const upd = () => f.frais.value = prix(f.zone.value); f.zone.onchange = upd; upd(); let dep = null, dst = null;
-      chercher($('#pq1'), $('#pr1'), x => { dep = {lat:x.lat, lng:x.lng}; if(!f.rep.value) f.rep.value = x.court; toast('Lieu de récupération placé'); });
+      const f = $('#fm'); let dep = null, dst = null, distP = null;
+      const upd = async () => { if(modeKm()){ if(dep && dst){ distP = await distanceKm(dep, dst); f.frais.value = prixKm(distP); } } else f.frais.value = prix(f.zone.value);
+        if(estOfferte(f.tel.value)){ f.frais.value = 0; toast('🎁 Livraison offerte (fidélité)'); } };
+      f.zone.onchange = upd; f.tel.onchange = upd; upd();
+      chercher($('#pq1'), $('#pr1'), x => { dep = {lat:x.lat, lng:x.lng}; if(!f.rep.value) f.rep.value = x.court; toast('Lieu de récupération placé'); upd(); });
       chercher($('#pq2'), $('#pr2'), x => { dst = {lat:x.lat, lng:x.lng}; if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse); upd(); toast('Lieu de livraison placé'); });
       f.onsubmit = async ev => { ev.preventDefault(); const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
         const d = Object.fromEntries(new FormData(f)), l = S.livreurs.find(x => x.id === d.lv);
         await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
-          colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, limiteRecup:lim, creeLe:Date.now(), source:'patron',
+          colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, creeLe:Date.now(), source:'patron',
           ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})});
         fermer(); toast('Livraison créée'); memoriser(d.rep, dep, ''); memoriser(d.dest, dst, d.zone); }; }); },
   lvEdit(id){ const l = S.livreurs.find(x => x.id === id) || {};
@@ -977,7 +1049,7 @@ async function demarrer(){
     try { await firebase.auth().signInAnonymously(); } catch(er){ alerte('net', "📶 Connexion au serveur impossible : vérifiez Internet puis rechargez la page. (" + er.message + ')', 'net', true); }
     DB = fireDB(); suivreDB();
   }
-  const cols = ['livraisons','livreurs','positions','versements','params','plaintes','lieux','messages'];
+  const cols = ['livraisons','livreurs','positions','versements','params','plaintes','lieux','messages','alertes'];
   await Promise.race([Promise.all(cols.map(c => new Promise(res => DB.watch(c, a => { S[c] = a; S.ok[c] = 1;
     if(c === 'params'){ S.p = {...DEF, ...(a.find(x => x.id === 'general') || {})}; $('#nomEnt').textContent = S.p.entreprise; }
     res(); VUE.refresh && VUE.refresh(); surveiller(); })))), new Promise(r => setTimeout(r, 8000))]);
