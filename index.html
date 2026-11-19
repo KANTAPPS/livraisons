@@ -241,7 +241,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], pinPatron: '0000', part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '22';
+const VERSION = '23';
 // ----- photo du livreur -----
 const photoLv = id => (S.livreurs.find(l => l.id === id) || {}).photo || '';
 const avatar = (id, t) => { const ph = photoLv(id); return ph ? `<img class="avatar ${t || ''}" src="${ph}" alt="Photo du livreur" data-a="voirPhoto" data-id="${id}">` : ''; };
@@ -1023,9 +1023,9 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true);
 
 // ---------- actions ----------
 const ACT = {
-  testLv(id){ const l = S.livreurs.find(x => x.id === id); ntfy(canalLv(id), '🔔 Test E-Courses', `Bonjour ${l ? l.nom : ''}, vos alertes fonctionnent.`, 5, '#livreur'); ntfy(S.p.ntfyCanal, '🔔 Test E-Courses (canal général)', 'Canal des nouvelles demandes : OK.', 5); toast('Alerte de test envoyée : le téléphone doit sonner'); },
+  testLv(id){ const l = S.livreurs.find(x => x.id === id); ntfy(canalLv(id), '🔔 Test E-Courses', `Bonjour ${l ? l.nom : ''}, vos alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.`, 5, '#livreur'); toast('Une alerte de test envoyée : le téléphone doit sonner'); },
   async ntfyOk(id){ const l = S.livreurs.find(x => x.id === id); await DB.set('livreurs', id, {ntfyOk: !l.ntfyOk}); },
-  testNtfy(){ ntfy(S.p.ntfyCanal, '🔔 Test E-Courses', 'Si vous lisez ceci, les alertes fonctionnent.', 5); ntfy(canalPatron(), '🔔 Test E-Courses (patron)', 'Canal du patron : OK.', 5); toast('Alerte de test envoyée'); },
+  testNtfy(){ ntfy(canalPatron(), '🔔 Test E-Courses', 'Les alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.', 5, '#patron'); toast('Une alerte de test envoyée : touchez la notification pour arrêter la sonnerie'); },
   voirPhoto(id){ const l = S.livreurs.find(x => x.id === id); if(!l || !l.photo) return; modal(`<h2>${esc(l.nom)}</h2><img src="${l.photo}" alt="" style="width:100%;border-radius:14px"><button class="btn plein" data-a="fermer">Fermer</button>`); },
   ferAl(k){ sansAlerte(k); },
   alarmeOk(){ fermer(); setTimeout(surveiller, 400); },   // affiche l'alarme suivante s'il y en a
