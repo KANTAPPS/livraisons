@@ -215,6 +215,16 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;b
 @media (max-width:360px){#btnQuit{font-size:11px;padding:6px 8px;letter-spacing:0}header{gap:6px;padding-inline:10px}}
 #mode{flex:none}
 #btnQuit:active{background:rgba(125,211,252,.25)}
+/* choix du livreur */
+.s-lv{--sc:#0284c7;--sct:rgba(2,132,199,.08)}
+.lvChoix{display:flex;flex-direction:column;gap:8px;margin:8px 0}
+.lvOpt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 12px;margin:0;cursor:pointer;font:inherit;color:inherit}
+.lvOpt input{position:absolute;opacity:0;pointer-events:none}
+label.lvOpt,.form label.lvOpt{display:flex!important;flex-direction:row;align-items:center;margin:0!important;font-weight:400;position:relative}.lvOpt:has(input:checked){border-color:#0284c7;background:#e0f2fe;box-shadow:0 0 0 3px rgba(2,132,199,.15)}
+.lvNum{flex:none;width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#0284c7;color:#fff;font-weight:800;font-size:17px}
+.lvTxt{display:flex;flex-direction:column}.lvTxt small{color:var(--mut);font-size:13px}
+.card.choisi{border:2px solid #0284c7;background:#f0f9ff}.choisiTxt{background:#e0f2fe;color:#075985;border-radius:10px;padding:8px 10px;margin:4px 0 8px}
+.card.refusC{border:2px solid #dc2626;background:#fef2f2}
 /* caisse */
 .dateBloc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin:6px 0}.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.row2 input{min-width:0;width:100%;padding-inline:8px}.row2 label{margin:0}
 .dateLue{margin:8px 0 0;color:#166534;font-size:14.5px}.dateLue:empty{display:none}
@@ -289,7 +299,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '43';
+const VERSION = '46';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -314,9 +324,9 @@ try { new MutationObserver(function () { poserOeils(); }).observe(document.docum
 document.addEventListener('DOMContentLoaded', function () { poserOeils(); });
 
 // ----- mention du concepteur (KANT) -----
-const CONCEPTEUR = {nom:'KANT', tel:'+229 0197897521'};
+const CONCEPTEUR = {nom:'SOLUTIONS IA', tel:'+229 0197897521'};
 const avecMention = () => ls.get('mention', true) !== false;   // coupée seulement par la licence « marque blanche »
-const contactKant = () => `<div class="row" style="justify-content:center"><a class="btn s kantBtn" href="tel:${num(CONCEPTEUR.tel)}">📞 Appeler</a><a class="btn s kantBtn" href="${wa(CONCEPTEUR.tel, 'Bonjour KANT, je voudrais une application comme e-COURSE pour mon activité.')}">💬 WhatsApp</a></div>`;
+const contactKant = () => `<div class="row" style="justify-content:center"><a class="btn s kantBtn" href="tel:${num(CONCEPTEUR.tel)}">📞 Appeler</a><a class="btn s kantBtn" href="${wa(CONCEPTEUR.tel, 'Bonjour SOLUTIONS IA, je voudrais une application comme e-COURSE pour mon activité.')}">💬 WhatsApp</a></div>`;
 // ----- photo du livreur -----
 const photoLv = id => (S.livreurs.find(l => l.id === id) || {}).photo || '';
 const avatar = (id, t) => { const ph = photoLv(id); return ph ? `<img class="avatar ${t || ''}" src="${ph}" alt="Photo du livreur" data-a="voirPhoto" data-id="${id}">` : ''; };
@@ -573,14 +583,19 @@ function rappels(){ if(!DB) return; const N = rappelMs(), now = Date.now(), moi 
       if(c.statut === 'acceptee'){
         ntfy(canalLv(c.livreurId), '⏰ Rappel : le client vous attend', `${c.code} : ${resumeCmd(c)} — accepté il y a ${min} min, colis pas encore récupéré`, 5, '#livreur', seqC(c.id));
         if(n >= 2) ntfy(canalPatron(), `⏰ ${c.livreurNom} ne s'est pas encore présenté`, `${c.code} accepté il y a ${min} min, colis toujours pas récupéré`, 5, '#patron', seqC(c.id));
-      } else ntfy(S.p.ntfyCanal, '🔔 Rappel : demande toujours en attente', `${c.code} : ${resumeCmd(c)} — en attente depuis ${min} min`, 5, '#livreur', seqC(c.id));
+      } else if(c.livreurDemande) ntfy(canalLv(c.livreurDemande), '📌 Rappel : un client vous a choisi', `${c.code} : ${resumeCmd(c)} — acceptez ou refusez`, 5, '#livreur', seqC(c.id));
+      else ntfy(S.p.ntfyCanal, '🔔 Rappel : demande toujours en attente', `${c.code} : ${resumeCmd(c)} — en attente depuis ${min} min`, 5, '#livreur', seqC(c.id));
     }).catch(() => {});   // un autre téléphone l'a déjà envoyé
   }); }
 function surveiller(){ rappels(); const vu = ls.get('alarmes', {}); let msg = null, bon = false; const dire = (k, t, x, b) => { if(vu[k] || msg) return; vu[k] = 1; msg = [t, x]; bon = !!b; };   // une alarme à la fois, les autres suivent
   const att = S.livraisons.filter(c => c.statut === 'attente');
   if(S.role === 'livreur' && S.lv && S.svc) att.forEach(c => { const e = estimer(S.lv.id, S.moi, pointRecup(c));
+    if((c.livreurDemande && c.livreurDemande !== S.lv.id) || (c.refus || []).includes(S.lv.id)) return;
+    if(c.livreurDemande === S.lv.id) return dire('ch' + c.id + c.demandeLe, '📌 Un client vous a choisi', `${c.departTxt} → ${c.zone}${e ? ` · vous y êtes en ≈ ${e.min} min` : ''}. Ouvrez « Demandes » pour accepter ou refuser.`);
     if(!e || e.min <= resteMin(c)) dire('n' + c.id, '🔔 Nouvelle demande de livraison', `${c.departTxt} → ${c.zone}${e ? ` · vous y êtes en ≈ ${e.min} min` : ''}${c.limiteRecup ? ` · à récupérer avant ${H(c.limiteRecup)}` : ''}${e && e.trajet ? ' · sur votre trajet' : ''} · ${c.payeur === 'dest' ? 'payée par le receveur' : "payée par l'expéditeur"}`); });
-  if(S.role === 'patron'){ att.forEach(c => { dire('n' + c.id, '🔔 Nouvelle demande', `${c.code} : ${c.departTxt} → ${c.zone} · ${F(du(c))} à percevoir (voir Caisse)`);
+  if(S.role === 'patron'){ att.forEach(c => { if(c.livreurDemande) dire('ch' + c.id + c.demandeLe, '📌 Livreur choisi par le client', `${c.code} : le client a choisi ${nomLv(c.livreurDemande)}. Il doit accepter ou refuser.`);
+      if(c.refusLe) dire('rf' + c.id + c.refusLe, '🙅 Le livreur choisi a refusé', `${c.code} : ${nomLv((c.refus || []).slice(-1)[0])} a refusé. Le client doit en choisir un autre${S.p.tel ? '' : ''}. Vous pouvez aussi attribuer la course.`);
+      dire('n' + c.id, '🔔 Nouvelle demande', `${c.code} : ${c.departTxt} → ${c.zone} · ${F(du(c))} à percevoir (voir Caisse)`);
       if(pointRecup(c) && S.ok.positions && !candidats(c).some(x => x.ok)) dire('x' + c.id, '⚠️ Aucun livreur à temps', `Aucun livreur en service ne peut arriver avant ${H(c.limiteRecup)} pour ${c.code} (${c.departTxt}). Appelez un livreur ou le client.`); });
     const jr = iso(Date.now());
     presencesSuspectes().forEach(({p, cl, k}) => { const cle = 'sus' + k + jr; if(!vu[cle + 'db']){ vu[cle + 'db'] = 1;
@@ -591,6 +606,8 @@ function surveiller(){ rappels(); const vu = ls.get('alarmes', {}); let msg = nu
     S.plaintes.filter(x => x.statut === 'ouverte').forEach(x => dire('p' + x.id, '📣 Nouvelle réclamation', `${x.code} — ${x.motif} (${x.qui === 'dest' ? 'destinataire' : 'client'})`)); }
   // client : chaque étape de sa commande lui est annoncée
   if(S.role === 'client'){ const c = S.livraisons.find(x => x.id === ls.get('cmd', null));
+    if(c && c.statut === 'attente' && c.refusLe && !c.livreurDemande && !vu['rf' + c.id + c.refusLe]){ vu['rf' + c.id + c.refusLe] = 1;
+      msg = ['🙅 Le livreur choisi n\'est pas disponible', 'Il a refusé votre course. Choisissez un autre livreur dans la liste, ou prévenez tous les livreurs.']; }
     if(c){ const et = c.statut + (c.demarreLe ? 'd' : '') + (c.demarreLivLe ? 'l' : ''), k = 'e' + c.id + et;
       const T = {acceptee:['✅ Un livreur a reçu votre demande', `${c.livreurNom} a accepté votre demande. Il va bientôt partir vers vous. Patientez.`],
         acceptee_d:['🛵 Votre livreur est en route', `${c.livreurNom} vient vers vous. Suivez-le sur la carte.`],
@@ -802,8 +819,7 @@ service cloud.firestore {
     match /params/{d} { allow read: if signe(); allow write: if patron(); }
     match /livreurs/{lid} { allow read: if signe(); allow write: if patron(); }
     match /positions/{lid} {
-      allow get: if signe();
-      allow list: if staff();
+      allow get, list: if signe();   // le client voit les livreurs en service proches de lui (liste anonyme)
       allow create, update: if patron() || (livreur() && sess().lid == lid);
       allow delete: if patron();
     }
@@ -839,12 +855,15 @@ service cloud.firestore {
       allow update: if patron()
         || (signe() && seuls(['rappelLe', 'rappels']))
         || (signe() && resource.data.clientUid == request.auth.uid
-            && seuls(['clientPos', 'payeur', 'payeurLe', 'payeurPar', 'destTel', 'avisClient', 'statut', 'annuleeLe', 'annulePar'])
+            && seuls(['clientPos', 'payeur', 'payeurLe', 'payeurPar', 'destTel', 'avisClient', 'statut', 'annuleeLe', 'annulePar', 'livreurDemande', 'demandeLe'])
             && (nouv().statut == resource.data.statut || (resource.data.statut == 'attente' && nouv().statut == 'annulee')))
         || (signe() && resource.data.statut == 'livree' && seuls(['avisDest']))
         || (livreur() && resource.data.statut == 'attente' && nouv().statut == 'acceptee'
             && nouv().livreurId == sess().lid
+            && (resource.data.get('livreurDemande', null) == null || resource.data.livreurDemande == sess().lid)
             && seuls(['statut', 'livreurId', 'livreurNom', 'livreurTel', 'accepteeLe', 'rappels', 'rappelLe']))
+        || (livreur() && resource.data.statut == 'attente' && resource.data.get('livreurDemande', null) == sess().lid
+            && nouv().livreurDemande == null && seuls(['livreurDemande', 'refus', 'refusLe']))
         || (livreur() && resource.data.livreurId == sess().lid
             && seuls(['demarreLe', 'demarreLivLe', 'statut', 'recupereeLe', 'livreeLe', 'encaisse', 'codeSaisi'])
             && (nouv().statut == resource.data.statut
@@ -874,6 +893,7 @@ function abonnerRole(role){ if(roleAbo === role) return; roleAbo = role; desabo(
     if(role === 'patron'){ abo('r:plaintes', () => DB.watch('plaintes', poser('plaintes'))); abo('r:alertes', () => DB.watch('alertes', poser('alertes'))); }
   } else if(role === 'client'){
     abo('r:livraisons', () => DB.watch('livraisons', poser('livraisons'), ['clientUid', DB.uid()]));
+    abo('r:positions', () => DB.watch('positions', poser('positions')));
     abo('r:plaintes', () => DB.watch('plaintes', poser('plaintes'), ['auteurUid', DB.uid()]));
   } else if(role === 'dest') abo('r:plaintes', () => DB.watch('plaintes', poser('plaintes'), ['auteurUid', DB.uid()]));
 }
@@ -884,6 +904,16 @@ const attendre = c => new Promise(ok => { const t0 = Date.now(), f = () => S.ok[
 
 // ---------- codes secrets (patron, livreurs) : jamais stockés en clair ----------
 const patronConnecte = () => { try { return sessionStorage.getItem('pat') === '1'; } catch(e) { return false; } };
+/* ----- Espace fabricant (KANT) : règles Firebase + fichiers de l'application, protégé par e-mail + code secret -----
+   Seule l'EMPREINTE est écrite ici (impossible d'en retrouver le code). Vide = accès pas encore créé. */
+const FAB_EMPREINTE = '';
+async function empreinteFab(mail, code){ const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('kant-fabricant|' + String(mail).trim().toLowerCase() + '|' + code));
+  return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }
+const fabOuvert = () => { try { return sessionStorage.getItem('fab') === '1'; } catch(e) { return false; } };
+async function lireFichier(nom){ const r = await fetch(nom + '?t=' + Date.now(), {cache:'no-store'}); if(!r.ok) throw new Error(nom + ' introuvable (' + r.status + ')'); return r.text(); }
+function telecharger(nom, txt, type){ const u = URL.createObjectURL(new Blob([txt], {type:type || 'text/plain'})), a = document.createElement('a');
+  a.href = u; a.download = nom; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 4000); }
+function copier(txt, ok){ (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast(ok || '✅ Copié'), () => toast('Copie impossible : utilisez « Télécharger »')); }
 async function hacher(...p){ const txt = ['ecourse', CONFIG.firebase.projectId || 'essai', ...p].join('|');
   if(!(window.crypto && crypto.subtle)) throw new Error('Ouvrez l\'application par son adresse https (sécurité du navigateur).');
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }
@@ -930,7 +960,7 @@ function accueil(){ S.role = null; ls.set('role', null); garderEcran(false);
       <button class="opt o3" data-a="go" data-id="patron"><span class="ico">${ICO.boss}</span><span><b>Espace patron</b><small>${patronConnecte() ? '✅ Connecté : entrez sans code' : 'Livreurs, caisse et rapports'}</small></span></button>
       ${patronConnecte() ? '<button class="btn s plein" data-a="deconnexion" style="margin-top:-4px">🔒 Se déconnecter (le code patron sera redemandé)</button>' : ''}
     </div><div style="margin-top:16px">${btnInstaller()}</div>
-    ${avecMention() ? `<div class="kant"><p><b>Vous voulez une application comme celle-ci pour votre commerce ?</b></p><p>Conçue par <b>KANT</b> · ${CONCEPTEUR.tel}</p>${contactKant()}</div>` : ''}
+    ${avecMention() ? `<div class="kant"><p><b>Vous voulez une application comme celle-ci pour votre commerce ?</b></p><p data-fab>Conçue par <b>${CONCEPTEUR.nom}</b> · ${CONCEPTEUR.tel}</p>${contactKant()}</div>` : ''}
     <p class="ver">LIVRAISONS · version ${VERSION}</p></section>`); }
 
 // ---------- client ----------
@@ -1013,6 +1043,7 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       <button type="button" class="btn plein" id="bGps">📍 Utiliser ma position actuelle</button>
       <p class="note" id="gInfo">Vous pouvez aussi toucher la carte pour placer le point.</p><div id="m1" class="map"></div>
       <label>Repère (quartier, carrefour, couleur du portail…)<input name="rep" required placeholder="Ex. Vèdoko, en face de la pharmacie"></label></fieldset>
+    <fieldset class="sec s-lv"><legend>🛵 Choisissez votre livreur</legend><div id="lvProches"><p class="note">📍 Indiquez d'abord où le livreur prend le colis : les livreurs proches de vous s'afficheront ici, du plus proche au plus loin.</p></div></fieldset>
     <fieldset class="sec s-dest"><legend>🏁 Où livrer</legend>
       <label>Rechercher le lieu de livraison<input id="q2" type="search" autocomplete="off" placeholder="Ex. Carrefour Calavi Kpota, Stade de l'Amitié…"></label>
       <div id="res2" class="res"></div>
@@ -1033,7 +1064,14 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       <label><input type="radio" name="payeur" value="dest">🏠 Le receveur paie</label></div><p class="note" id="payInfo"></p></fieldset>
     <button class="btn jaune plein">Appeler un livreur</button></form></div>`, {init(){
     const m = carte('m1'), f = $('#f'); let upd = () => {}, fraisCalc = null, distCalc = null;
-    const setPos = p => { pos = p; sansAlerte('gps'); precision(p.acc); upd(); pin(m, 'moi', p, '#e0412b', 'Prise du colis'); m && m.setView([p.lat, p.lng], 16);
+    const majProches = () => { const z = $('#lvProches'); if(!z) return; if(!pos) return;
+      const sel = (f.querySelector('[name=lvCh]:checked') || {}).value || '', L = proches(pos);
+      z.innerHTML = `<p class="note">Les livreurs restent anonymes. Celui que vous choisissez peut accepter ou refuser ; s'il refuse, vous en choisissez un autre.</p><div class="lvChoix">
+        <label class="lvOpt"><input type="radio" name="lvCh" value="" ${!sel || !L.some(x => x.l.id === sel) ? 'checked' : ''}><span class="lvNum">⚡</span><span class="lvTxt"><b>Le plus rapide</b><small>Tous les livreurs sont prévenus : le premier qui accepte vient chez vous.</small></span></label>
+        ${L.map((x, i) => `<label class="lvOpt"><input type="radio" name="lvCh" value="${x.l.id}" ${sel === x.l.id ? 'checked' : ''}>${lvLigne(x, i)}</label>`).join('')}</div>
+        ${L.length ? '' : '<p class="note">Aucun livreur en service près de vous pour le moment : votre demande sera envoyée à tous les livreurs.</p>'}`; };
+    this.majProches = majProches;
+    const setPos = p => { pos = p; sansAlerte('gps'); precision(p.acc); upd(); majProches(); pin(m, 'moi', p, '#e0412b', 'Prise du colis'); m && m.setView([p.lat, p.lng], 16);
       $('#gInfo').textContent = p.acc ? `Position trouvée (à ${p.acc} m près). Touchez la carte pour corriger.` : 'Point placé sur la carte.'; };
     $('#bGps').onclick = () => { if(!navigator.geolocation) return toast('GPS indisponible'); $('#gInfo').textContent = 'Recherche de votre position…';
       navigator.geolocation.getCurrentPosition(p => setPos({lat:p.coords.latitude, lng:p.coords.longitude, acc:Math.round(p.coords.accuracy)}),
@@ -1075,11 +1113,14 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       if(S.livraisons.filter(x => x.statut === 'attente').length >= 3) return alarme('Trop de demandes en attente', 'Vous avez déjà 3 demandes en attente. Patientez ou annulez-en une avant d\'en faire une nouvelle.');
       await upd(); const offerte = estOfferte(f.tel.value);
       const d = Object.fromEntries(new FormData(f)); ls.set('client', {nom:d.nom, tel:d.tel});
-      const id = await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
+      const lvCh = (f.querySelector('[name=lvCh]:checked') || {}).value || '';
+      if(lvCh && !posLv(lvCh)) return toast("Ce livreur n'est plus en service : choisissez-en un autre");
+      const nC = {code:codeCmd()};
+      const id = await DB.add('livraisons', {code:nC.code, livreurDemande:lvCh || null, demandeLe:lvCh ? Date.now() : 0, clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
         destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc, distanceKm:modeKm() ? distCalc : null, offerte, limiteRecup:lim, livrerLe:livrerLe || 0, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
       const code = codeAleatoire(); await DB.set('codes', id + '_' + code, {t:Date.now()}); ls.set('code_' + id, code);
-      alerteDemande('🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc, limiteRecup:lim, livrerLe}), id);
-      ls.set('cmd', id); toast('✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }}); }
+      choisirLvAlerte({code:nC.code, departTxt:d.rep, zone:d.zone, frais:fraisCalc, limiteRecup:lim, livrerLe}, id, lvCh);
+      ls.set('cmd', id); toast(lvCh ? '✅ Demande envoyée au livreur choisi. Patientez, il doit accepter.' : '✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }, refresh(){ this.majProches && this.majProches(); }}); }
 const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexOf(c.statut); if(i < 0) return ''; if(i >= 2 || (i === 1 && c.demarreLe)) i++;
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
 function suivi(id){ let w = 0; abonnerRole('client'); suivreColis(id);
@@ -1101,7 +1142,7 @@ function suivi(id){ let w = 0; abonnerRole('client'); suivreColis(id);
       if(c.statut === 'attente' && Date.now() - c.creeLe > 5 * 60000 && !ls.get('ntfy5' + id, 0)){ ls.set('ntfy5' + id, 1); ntfy(canalPatron(), '⚠️ Aucun livreur depuis 5 min', c.code + ' : ' + resumeCmd(c), 5, '#patron', seqC(id)); }
       $('#st').innerHTML = `<p class="code">Commande ${esc(c.code)}</p><h2>${libelle(c)}</h2>${etapes(c)}
         ${c.statut === 'attente' && Date.now() - c.creeLe > 5 * 60000 ? `<p class="alerte">⏳ Aucun livreur n'a encore accepté. Patientez encore un peu${S.p.tel ? `, ou appelez-nous : <a href="tel:${num(S.p.tel)}">${esc(S.p.tel)}</a>` : ''}.</p>` : ''}
-        ${chrono(c)}${c.statut === 'attente' ? `<p class="note">${nb ? `${nb} livreur(s) peuvent arriver à temps. Le premier qui accepte vient chez vous.` : 'Nous cherchons un livreur proche de vous…'}</p>` : ''}
+        ${chrono(c)}${c.statut === 'attente' ? choixHtml(c, nb) : ''}
         ${c.statut === 'acceptee' && d != null ? `<p class="gros">${esc(c.livreurNom)} ${c.demarreLe ? 'arrive' : 'va partir'} : ${kmT(d)} · ≈ ${minutes(d)} min</p>` : ''}`;
       const k = c.statut + !!c.avisClient + JSON.stringify(S.plaintes.filter(x => x.livraisonId === id));
       if(k !== this.k){ this.k = k; $('#avis').innerHTML = (c.statut === 'livree' ? (c.avisClient ? `<div class="card"><p>Votre avis : <span class="etoiles">${etoiles(c.avisClient.note)}</span></p><p class="note">Merci !</p></div>`
@@ -1178,13 +1219,13 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur');
 
       const avert = S.svc ? '' : '<p class="alerte">Activez « En service » pour partager votre position et voir les distances.</p>';
       if(tab === 'dem'){
-        const rows = S.livraisons.filter(c => c.statut === 'attente').map(c => { const e = estimer(l.id, S.moi, pointRecup(c)); return {c, e, ok:!e || e.min <= resteMin(c)}; })
+        const rows = S.livraisons.filter(c => c.statut === 'attente' && (!c.livreurDemande || c.livreurDemande === l.id) && !(c.refus || []).includes(l.id)).map(c => { const e = estimer(l.id, S.moi, pointRecup(c)); return {c, e, ok:!e || e.min <= resteMin(c)}; })
           .sort((a,b) => resteMin(a.c) - resteMin(b.c) || (a.e ? a.e.min : 1e9) - (b.e ? b.e.min : 1e9));
-        const carteD = ({c, e, ok}) => `<div class="card ${ok ? '' : 'loin'}"><div class="row sb"><b>${esc(c.departTxt)}</b>${e ? `<span class="dist">≈ ${e.min} min</span>` : ''}</div>
+        const carteD = ({c, e, ok}) => `<div class="card ${c.livreurDemande === l.id ? 'choisi' : ok ? '' : 'loin'}">${c.livreurDemande === l.id ? '<p class="choisiTxt">📌 <b>Ce client vous a choisi.</b> Acceptez ou refusez vite : s\'il attend trop, il en choisira un autre.</p>' : ''}<div class="row sb"><b>${esc(c.departTxt)}</b>${e ? `<span class="dist">≈ ${e.min} min</span>` : ''}</div>
           ${e ? (e.trajet ? `<p><span class="badge">Sur votre trajet (${detourT(e.detour)})</span></p>` : e.occupe ? '<p><span class="badge gris">Après votre course en cours</span></p>' : '') : '<p class="note">Position du client inconnue : appelez-le.</p>'}
           <p>Vers ${esc(c.zone)} — ${esc(c.dest)}</p><p class="note">${esc(c.colis || 'Colis')} · demandé à ${H(c.creeLe)}</p>${consignesHtml(c)}${payeHtml(c, true)}${chrono(c)}
           ${ok ? '' : `<p class="note">Vous arriveriez trop tard pour l'heure limite.</p>`}${gain(c)}
-          <div class="row sb"><b>${F(c.frais)}</b><button class="btn ${ok ? 'jaune' : ''}" data-a="prendre" data-id="${c.id}">Accepter</button></div></div>`;
+          <div class="row sb"><b>${F(c.frais)}</b><span class="row" style="margin:0">${c.livreurDemande === l.id ? `<button class="btn rouge" data-a="refuserCh" data-id="${c.id}">✋ Refuser</button>` : ''}<button class="btn ${ok || c.livreurDemande === l.id ? 'jaune' : ''}" data-a="prendre" data-id="${c.id}">Accepter</button></span></div></div>`;
         const bons = rows.filter(r => r.ok), loin = rows.filter(r => !r.ok);
         $('#lst').innerHTML = avert + (bons.length ? bons.map(carteD).join('') : '<p class="vide">Aucune demande que vous pouvez faire à temps pour le moment.</p>')
           + (loin.length ? `<details><summary>${loin.length} demande(s) trop loin pour le délai</summary>${loin.map(carteD).join('')}</details>` : '');
@@ -1230,16 +1271,38 @@ async function patronLogin(){
       try { const pin = f.pin.value;
         if(premier){ if(pin !== f.pin2.value){ b.disabled = false; b.textContent = 'Entrer'; return toast('Les deux codes sont différents'); } await creerClePatron(pin); }
         else if(await clePatronOk(pin)) await ouvrirSession('patron', await hacher('patron', pin));
-        else if(S.p.pinPatron && String(S.p.pinPatron) === pin){ await creerClePatron(pin); alerte('info', '🛡️ Sécurité activée : votre code est maintenant chiffré. Publiez les nouvelles règles Firebase (Réglages → 🛡️).', 'info', true); }
+        else if(S.p.pinPatron && String(S.p.pinPatron) === pin){ await creerClePatron(pin); alerte('info', '🛡️ Sécurité activée : votre code est maintenant chiffré. Prévenez votre concepteur (' + CONCEPTEUR.nom + ') pour la mise à jour des règles de sécurité.', 'info', true); }
         else { b.disabled = false; b.textContent = 'Entrer'; return toast('Code incorrect'); }
         await migrerCodes();
         try { sessionStorage.setItem('pat', '1'); } catch {} ls.set('patronIci', 1); ls.set('viaLien', 0); patronApp();   /* ce téléphone est celui du patron */
       } catch(er){ b.disabled = false; b.textContent = 'Entrer'; toast('Erreur : ' + er.message); } }; }}); }
+/* ----- choix du livreur par le client (comme Yango) : livreurs en service, du plus proche au plus loin, anonymes ----- */
+function proches(P, exclure){ if(!P || P.lat == null) return [];
+  return S.livreurs.filter(l => l.actif !== false && !(exclure || []).includes(l.id)).map(l => { const q = posLv(l.id), d = km(q, P); return d == null ? null : {l, d, min:minutes(d), mo:moyenne(l.id)}; })
+    .filter(Boolean).sort((a, b) => a.d - b.d).slice(0, 12); }
+/* suivi client : livreur choisi en attente, refus, ou choix d'un autre livreur */
+function choixHtml(c, nb){ const L = proches(pointRecup(c) || c.depart, c.refus), id = c.id;
+  const liste = () => `<div class="lvChoix">${L.filter(x => x.l.id !== c.livreurDemande).map(x => `<button class="lvOpt" data-a="choisirLv" data-id="${id}|${x.l.id}">${lvLigne(x, L.indexOf(x))}</button>`).join('')}
+    ${c.livreurDemande || (c.refus || []).length ? `<button class="lvOpt" data-a="choisirLv" data-id="${id}|"><span class="lvNum">⚡</span><span class="lvTxt"><b>Prévenir tous les livreurs</b><small>Le premier qui accepte vient chez vous.</small></span></button>` : ''}</div>
+    ${L.filter(x => x.l.id !== c.livreurDemande).length ? '' : '<p class="note">Aucun autre livreur en service près de vous pour le moment.</p>'}`;
+  if(c.livreurDemande){ const i = L.findIndex(x => x.l.id === c.livreurDemande), x = L[i];
+    return `<div class="card choisi"><p>📌 <b>Vous avez choisi le livreur n°${i >= 0 ? i + 1 : '—'}</b>${x ? ` (à ${kmT(x.d)} · ≈ ${x.min} min)` : ''}. Il est prévenu et doit accepter votre course.</p>
+      ${Date.now() - (c.demandeLe || 0) > 3 * 60000 ? '<p class="alerte">⏳ Il ne répond pas encore. Vous pouvez en choisir un autre :</p>' : '<p class="note">Il tarde ? Vous pouvez en choisir un autre :</p>'}${liste()}</div>`; }
+  if((c.refus || []).length) return `<div class="card refusC"><p>🙅 <b>Le livreur choisi n'est pas disponible.</b> Choisissez-en un autre :</p>${liste()}</div>`;
+  return `<p class="note">${nb ? `${nb} livreur(s) peuvent arriver à temps. Le premier qui accepte vient chez vous.` : 'Nous cherchons un livreur proche de vous…'}</p>`
+    + (ls.get('voirLv' + id, 0) ? `<div class="card"><p><b>Choisir un livreur précis :</b></p>${liste()}</div>` : `<button class="btn s plein" data-a="voirLv" data-id="${id}">🛵 Choisir un livreur précis</button>`); }
+const nomLv = id => (S.livreurs.find(l => l.id === id) || {}).nom || 'le livreur';
+const lvLigne = (x, i) => `<span class="lvNum">${i + 1}</span><span class="lvTxt"><b>Livreur n°${i + 1}</b><small>à ${kmT(x.d)} · ≈ ${x.min} min${x.mo ? ` · ⭐ ${x.mo.m.toFixed(1)} (${x.mo.n} avis)` : ''}</small></span>`;
+function choisirLvAlerte(c, id, lid){ const res = resumeCmd(c);
+  if(lid){ alerteRep(canalLv(lid), '📌 Un client vous a choisi', res + ' · acceptez ou refusez dans l\'application', '#livreur', id);
+    ntfy(canalPatron(), '📌 Livreur choisi par le client', `${c.code || ''} : le client a choisi ${nomLv(lid)}. ${res}`, 4, '#patron'); }
+  else alerteDemande('🔔 Nouvelle demande de livraison', res, id); }
 const lvActifs = () => S.positions.filter(p => p.enService && p.lat != null && Date.now() - p.t < 10 * 60000);
 function carteLivraison(c, admin){ const fin = ['livree','annulee'].includes(c.statut);
   return `<div class="card"><div class="row sb">${pillC(c)}<span class="code">${esc(c.code)} · ${D(c.creeLe)} ${H(c.creeLe)}</span></div>
     <p><b>${esc(c.clientNom)}</b> ${esc(c.clientTel)}</p><p>De : ${esc(c.departTxt)}</p><p>À : ${esc(c.zone)} — ${esc(c.dest)} ${c.destNom ? '(' + esc(c.destNom) + ')' : ''}</p>
     ${c.colis ? `<p class="note">${esc(c.colis)}${c.distanceKm ? ' · ' + kmT(c.distanceKm) : ''}${c.offerte ? ' · 🎁 offerte' : ''}</p>` : ''}${consignesHtml(c)}${payeHtml(c)}${filMsgs(c.id, () => true, 'patron', 3)}<p>Frais ${F(c.frais)}${c.valeur ? ' · colis ' + F(c.valeur) : ''}${c.statut === 'livree' ? ` · <b>encaissé ${F(c.encaisse)}</b> à ${H(c.livreeLe)}` : ''}</p>
+    ${c.statut === 'attente' && c.livreurDemande ? `<p class="choisiTxt">📌 Choisi par le client : <b>${esc(nomLv(c.livreurDemande))}</b> (doit accepter)</p>` : ''}${c.statut === 'attente' && (c.refus || []).length ? `<p class="note">🙅 Refusée par : ${(c.refus || []).map(x => esc(nomLv(x))).join(', ')}</p>` : ''}
     ${chrono(c)}${c.livreurNom ? `<p>${avatar(c.livreurId, 'mini')}Livreur : <b>${esc(c.livreurNom)}</b>${c.demarreLe && c.statut === 'acceptee' ? ' (parti à ' + H(c.demarreLe) + ')' : ''}</p>` : ''}
     ${admin && c.statut === 'attente' ? (() => { if(!pointRecup(c)) return '<p class="note">Position de récupération inconnue : estimation impossible.</p>';
       const cs = candidats(c), ok = cs.filter(x => x.ok), ko = cs.filter(x => !x.ok);
@@ -1425,11 +1488,10 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       <p class="note">Les tarifs proposés au départ sont des exemples à adapter.</p>
       <button type="button" class="btn plein" data-a="lieux">📍 Lieux connus (${S.lieux.length})</button>
       <button type="button" class="btn plein" data-a="liens">🔗 Liens à partager et QR code</button>
-      <button type="button" class="btn plein" data-a="regles">🛡️ Règles de sécurité Firebase</button>
       ${(S.bloques || []).length ? `<p class="soustitre">🚫 Numéros bloqués</p>${S.bloques.map(t => `<div class="row sb"><span>…${esc(t)}</span><button type="button" class="btn s" data-a="bloquer" data-id="${esc(t)}">Débloquer</button></div>`).join('')}` : ''}
       <button type="button" class="btn plein rouge" data-a="raz">🧹 Remise à zéro (effacer les essais)</button>
       <button class="btn jaune plein">Enregistrer</button></form>
-      <div class="card c-det"><h3>🛠️ Assistance technique</h3><p>Concepteur : <b>${CONCEPTEUR.nom}</b> · ${CONCEPTEUR.tel}</p><p class="note">Panne, mise à jour, renouvellement de licence.</p>${contactKant()}</div>
+      <div class="card c-det"><h3>🛠️ Assistance technique</h3><p data-fab>Concepteur : <b>${CONCEPTEUR.nom}</b> · ${CONCEPTEUR.tel}</p><p class="note">Panne, mise à jour, renouvellement de licence.</p>${contactKant()}</div>
       <p class="note">LIVRAISONS version ${VERSION} · ${DB.local ? 'Mode essai : les données restent sur ce téléphone.' : 'Base en ligne connectée.'}${CONFIG.licenceCle ? ' Licence : ' + esc(CONFIG.licenceCle) : ''}</p>
       <button class="btn plein" data-a="sortie">Fermer l'espace patron</button></div>`,
     init(){ const f = $('#f'); f.onsubmit = async ev => { ev.preventDefault(); const d = Object.fromEntries(new FormData(f));
@@ -1442,11 +1504,49 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
 
 // ---------- actions ----------
 const ACT = {
-  regles(){ modal(`<h2>🛡️ Règles de sécurité Firebase</h2>
+  fabricant(){ if(fabOuvert()) return ACT.fabEspace();
+    const blq = +ls.get('fabBloque', 0); if(blq > Date.now()) return alarme('🔒 Espace fabricant bloqué', `Trop d'essais. Réessayez dans ${Math.ceil((blq - Date.now()) / 60000)} min.`);
+    const cree = !!FAB_EMPREINTE;
+    modal(`<h2>🛠️ Espace fabricant</h2><p class="note">${cree ? 'Réservé au concepteur du logiciel.' : "Première fois : créez votre accès. Votre code n'est jamais enregistré : l'application en tire seulement une empreinte."}</p>
+      <form id="fm" class="form"><label>E-mail du fabricant<input id="fMail" type="email" required autocomplete="off" autocapitalize="off"></label>
+      <label>Code secret${cree ? '' : ' (8 caractères minimum)'}<input id="fCode" type="password" required minlength="${cree ? 1 : 8}" autocomplete="off"></label>
+      ${cree ? '' : '<label>Retapez le code secret<input id="fCode2" type="password" required autocomplete="off"></label>'}
+      <button class="btn jaune plein">${cree ? 'Ouvrir' : 'Créer mon accès'}</button><button type="button" class="btn plein" data-a="fermer">Fermer</button></form>`, () => {
+      $('#fm').onsubmit = async ev => { ev.preventDefault(); const m = $('#fMail').value, c = $('#fCode').value;
+        if(!(window.crypto && crypto.subtle)) return toast("Ouvrez l'application par son adresse https");
+        if(!cree){ if(c.length < 8) return toast('8 caractères minimum'); if(c !== $('#fCode2').value) return toast('Les 2 codes sont différents');
+          const e = await empreinteFab(m, c);
+          return modal(`<h2>✅ Empreinte créée</h2><p>Envoyez <b>seulement cette empreinte</b> à Claude, <b>jamais votre code</b>. Elle sera inscrite dans la version suivante, et vous seul pourrez ouvrir cet espace.</p>
+            <p class="lienTxt" style="word-break:break-all;font-family:monospace">${e}</p><button class="btn jaune plein" data-a="fabCopierEmp" data-id="${e}">📋 Copier l'empreinte</button>
+            <p class="note">⚠️ Notez votre e-mail et votre code dans un endroit sûr : s'ils sont perdus, il faudra créer un nouvel accès.</p>
+            <button class="btn plein" data-a="fabEspace">Ouvrir l'espace fabricant</button>`, () => { try { sessionStorage.setItem('fab', '1'); } catch(e2) {} }); }
+        if(await empreinteFab(m, c) === FAB_EMPREINTE){ ls.set('fabEssais', 0); try { sessionStorage.setItem('fab', '1'); } catch(e2) {} return ACT.fabEspace(); }
+        const n = +ls.get('fabEssais', 0) + 1; ls.set('fabEssais', n);
+        if(n >= 5){ ls.set('fabEssais', 0); ls.set('fabBloque', Date.now() + 15 * 60000); fermer(); return alarme('🔒 Espace fabricant bloqué', 'Trop d\'essais : bloqué 15 minutes.'); }
+        toast(`❌ E-mail ou code incorrect (${5 - n} essai(s) restant(s))`); }; }); },
+  fabCopierEmp(e){ copier(e, "✅ Empreinte copiée : envoyez-la à Claude"); },
+  fabEspace(){ if(!fabOuvert()) return ACT.fabricant();
+    modal(`<h2>🛠️ Espace fabricant</h2><p>Application <b>${esc(S.p.entreprise)}</b> · version <b>v${VERSION}</b> · ${esc(location.origin + location.pathname)}</p>
+      <div class="card"><h3>📄 index.html (v${VERSION})</h3><p class="note">Le fichier de l'application, tel qu'il est publié en ce moment.</p>
+        <div class="row"><button class="btn s jaune" data-a="fabDl" data-id="index.html">⬇️ Télécharger</button><button class="btn s" data-a="fabDl" data-id="num">⬇️ Copie numérotée ${VERSION}_LIVRAISONS.html</button><button class="btn s" data-a="fabCp" data-id="index.html">📋 Copier</button></div></div>
+      <div class="card"><h3>⚙️ sw.js</h3><p class="note">Le fichier qui gère les mises à jour sur les téléphones.</p>
+        <div class="row"><button class="btn s jaune" data-a="fabDl" data-id="sw.js">⬇️ Télécharger</button><button class="btn s" data-a="fabCp" data-id="sw.js">📋 Copier</button></div></div>
+      <div class="card"><h3>🛡️ Règles de sécurité Firebase</h3><p class="note">À coller dans console.firebase.google.com → Firestore Database → Règles, puis Publier.</p>
+        <div class="row"><button class="btn s jaune" data-a="copierRegles">📋 Copier les règles</button><button class="btn s" data-a="fabDl" data-id="regles">⬇️ Télécharger</button></div>
+        <pre class="regles">${esc(REGLES_FIRESTORE)}</pre></div>
+      <button class="btn rouge plein" data-a="fabFermer">🔒 Fermer l'espace fabricant</button><button class="btn plein" data-a="fermer">Retour</button>`); },
+  async fabDl(k){ if(!fabOuvert()) return;
+    try { if(k === 'regles') return telecharger('regles-firestore.txt', REGLES_FIRESTORE);
+      const nom = k === 'num' ? 'index.html' : k, txt = await lireFichier(nom);
+      telecharger(k === 'num' ? VERSION + '_LIVRAISONS.html' : nom, txt, nom.endsWith('.html') ? 'text/html' : 'text/javascript'); toast('⬇️ Téléchargement lancé'); }
+    catch(e){ alarme('Fichier introuvable', e.message + ". En mode essai (fichier ouvert directement), seul le site publié permet de télécharger les fichiers."); } },
+  async fabCp(k){ if(!fabOuvert()) return; try { copier(await lireFichier(k), '✅ ' + k + ' copié'); } catch(e){ alarme('Fichier introuvable', e.message); } },
+  fabFermer(){ try { sessionStorage.removeItem('fab'); } catch(e) {} fermer(); toast('🔒 Espace fabricant fermé'); },
+  regles(){ if(!fabOuvert()) return ACT.fabricant(); modal(`<h2>🛡️ Règles de sécurité Firebase</h2>
     <p class="note">À coller dans <b>console.firebase.google.com → votre projet → Firestore Database → onglet Règles</b>, à la place de tout le texte, puis <b>Publier</b>.</p>
     <p class="alerte">Faites-le seulement <b>après</b> vous être connecté une fois comme patron avec cette version : c'est ce qui chiffre vos codes.</p>
     <button class="btn jaune plein" data-a="copierRegles">📋 Copier les règles</button><pre class="regles">${esc(REGLES_FIRESTORE)}</pre><button class="btn plein" data-a="fermer">Fermer</button>`); },
-  copierRegles(){ navigator.clipboard.writeText(REGLES_FIRESTORE).then(() => toast('✅ Règles copiées'), () => toast('Copie impossible : sélectionnez le texte et copiez-le')); },
+  copierRegles(){ if(!fabOuvert()) return; navigator.clipboard.writeText(REGLES_FIRESTORE).then(() => toast('✅ Règles copiées'), () => toast('Copie impossible : sélectionnez le texte et copiez-le')); },
   async installer(){ if(invite){ invite.prompt(); const r = await invite.userChoice; if(r.outcome === 'accepted') invite = null; return; }
     modal(`<h2>📲 Installer ${esc(S.p.entreprise)}</h2>${iPhone() ? '<p>Dans Safari, touchez le bouton <b>Partager</b> (carré avec une flèche), puis <b>« Sur l\'écran d\'accueil »</b>, puis <b>Ajouter</b>.</p>'
       : '<p>Dans Chrome, touchez <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b>.</p><p class="note">Si vous voyez seulement « Ajouter à l\'écran d\'accueil », rechargez la page et attendez quelques secondes.</p>'}<button class="btn plein" data-a="fermer">Fermer</button>`); },
@@ -1530,7 +1630,8 @@ const ACT = {
   tab: k => S.role === 'livreur' ? livreurApp(S.lv, k) : patronApp(k),
   newCmd(){ ls.set('cmd', null); commande(); },
   async annulerC(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'client'}); couperTous(id); toast('Demande annulée'); },
-  async prendre(id){ const l = S.lv;
+  async prendre(id){ const l = S.lv, c0 = S.livraisons.find(x => x.id === id);
+    if(c0 && c0.livreurDemande && c0.livreurDemande !== l.id) return toast('Ce client a choisi un autre livreur');
     try { await DB.prendre(id, {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), rappels:0, rappelLe:0});
       couperTous(id);   /* course prise : tous les téléphones arrêtent de sonner */
       toast('Course acceptée'); if(!S.svc) service(l, true); livreurApp(l, 'mes'); } catch(er){ toast(er.message); } },
@@ -1595,6 +1696,16 @@ const ACT = {
           ${c.destTel ? `<a class="btn vert plein" href="${wa(c.destTel, txt)}">Envoyer par WhatsApp</a>` : '<p class="note">Pas de numéro de destinataire enregistré.</p>'}
           ${c.clientTel ? `<p>L'expéditeur (${esc(c.clientNom || '')}) est prévenu dans l'application. Prévenez-le aussi par WhatsApp :</p><a class="btn plein" href="${wa(c.clientTel, `Bonjour ${net(c.clientNom)}, votre colis ${c.code} de ${S.p.entreprise} a été remis à ${net(c.destNom) || 'son destinataire'} à ${H(Date.now())}${c.codeExige ? ', avec son code de réception' : ''}. Merci de votre confiance !`)}">💬 Prévenir l'expéditeur</a>` : ''}
           <button class="btn plein" data-a="fermer">Terminer</button>`); }; }); },
+  async refuserCh(id){ const c = S.livraisons.find(x => x.id === id), l = S.lv; if(!c || !l) return;
+    await DB.set('livraisons', id, {livreurDemande:null, refus:(c.refus || []).concat([l.id]), refusLe:Date.now()});
+    couperNtfy([canalLv(l.id)], [id]); ntfy(canalPatron(), '🙅 Course refusée', `${c.code} : ${l.nom} a refusé la course où le client l'avait choisi. Le client va en choisir un autre.`, 4, '#patron');
+    toast('Course refusée : le client va choisir un autre livreur'); },
+  voirLv(id){ ls.set('voirLv' + id, 1); VUE.refresh && VUE.refresh(); },
+  async choisirLv(v){ const [id, lid] = String(v).split('|'), c = S.livraisons.find(x => x.id === id); if(!c || c.statut !== 'attente') return;
+    if(lid && !posLv(lid)) return toast("Ce livreur n'est plus en service : choisissez-en un autre");
+    if(c.livreurDemande && c.livreurDemande !== lid) couperNtfy([canalLv(c.livreurDemande)], [id]);   // l'ancien livreur choisi arrête de sonner
+    await DB.set('livraisons', id, {livreurDemande:lid || null, demandeLe:Date.now()}); choisirLvAlerte(c, id, lid);
+    toast(lid ? '✅ Livreur prévenu : il doit accepter' : '✅ Tous les livreurs sont prévenus'); },
   async annulerP(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'patron'}); couperTous(id); toast('Livraison annulée'); },
   suppr(id){ modal(`<h2>Supprimer cette livraison ?</h2><p>Elle disparaîtra aussi des rapports.</p><button class="btn rouge plein" data-a="supprOk" data-id="${id}">Supprimer</button><button class="btn plein" data-a="fermer">Retour</button>`); },
   async supprOk(id){ for(const m of S.messages.filter(x => x.livraisonId === id)) if(m._path) await delChemin(m._path);
@@ -1742,7 +1853,12 @@ async function demarrer(){
     if(x === '#client'){ ls.set('viaLien', 1); client(); return true; }
     if(x === '#livreur'){ livreurLogin(); return true; }
     if(x === '#patron'){ patronLogin(); return true; }
+    if(x === '#fabricant'){ if(!S.role) accueil(); ACT.fabricant(); return true; }
     return false; };
+  /* appui long (1 s) sur « Conçue par SOLUTIONS IA » = Espace fabricant */
+  { let t = null; const fin = () => { clearTimeout(t); t = null; };
+    document.addEventListener('pointerdown', ev => { if(ev.target.closest('[data-fab]')){ fin(); t = setTimeout(() => { t = null; ACT.fabricant(); }, 1000); } }, true);
+    ['pointerup','pointercancel','pointerleave'].forEach(e => document.addEventListener(e, fin, true)); }
   addEventListener('hashchange', lienDirect);
   /* bouton retour du téléphone : revient à l'onglet d'accueil au lieu de fermer l'application */
   const garde = () => { try { if(!(history.state && history.state.g)) history.pushState({g:1}, ''); } catch(e) {} };
