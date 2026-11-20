@@ -216,6 +216,12 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;b
 #mode{flex:none}
 #btnQuit:active{background:rgba(125,211,252,.25)}
 /* caisse */
+.paye.nocash{background:#fef2f2;border-left-color:#dc2626;color:#991b1b}
+.codeRap{background:#eef2ff;border-left:5px solid #4f46e5;border-radius:10px;padding:10px 12px;margin:8px 0;color:#312e81}
+.prixBloc{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border-radius:12px;padding:12px 14px;margin:6px 0 10px;background:#ecfdf5;border:2px solid #22c55e}
+.prixBloc small{font-size:13px;color:#166534;font-weight:700}.prixBloc b{font-size:28px;color:#15803d;line-height:1.1}.prixBloc span{font-size:13px;color:#166534}
+.prixBloc.att{display:block;background:#fff7ed;border:2px dashed #fb923c;color:#9a3412;font-size:14.5px}
+.prixBloc.att b{font-size:inherit;color:#7c2d12;line-height:inherit}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}.scroll table{min-width:100%}
 .cHist td,.cHist th{padding:7px 4px;font-size:13px}
 .etq{display:inline-block;font-size:12px;font-weight:800;padding:3px 9px;border-radius:99px;white-space:nowrap}
@@ -280,7 +286,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '38';
+const VERSION = '41';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -323,6 +329,7 @@ const typeColisChamp = () => `<fieldset class="sec s-colis"><legend>📦 Que fau
 const nomColis = f => [new FormData(f).get('ctype'), f.colis.value.trim()].filter(Boolean).join(' — ') || 'Colis';
 // ----- prix à la distance réelle (route) entre récupération et livraison -----
 const modeKm = () => S.p.tarifMode === 'km';
+const modeFixe = () => S.p.tarifMode === 'fixe' && +S.p.prixFixe > 0;   /* prix unique écrit par le propriétaire */
 const cacheKm = {};
 async function distanceKm(a, b){ if(!a || !b || a.lat == null || b.lat == null) return null;
   const k = [a.lat, a.lng, b.lat, b.lng].map(x => (+x).toFixed(4)).join(); if(cacheKm[k]) return cacheKm[k];
@@ -345,21 +352,27 @@ function clientsReguliers(){ const g = {};
   return Object.values(g); }
 // ----- qui paie la livraison -----
 const net = x => String(x == null ? '' : x).replace(/\s+/g, ' ').trim();
+/* numéros Mobile Money de l'entreprise (l'ancien champ « momo » devient MTN) */
+const momoN = () => ({mtn:net(S.p.momoMtn != null ? S.p.momoMtn : S.p.momo), moov:net(S.p.momoMoov), celtiis:net(S.p.momoCeltiis)});
+const momoListe = () => { const m = momoN(); return [m.mtn && 'MOMO MTN ' + m.mtn, m.moov && 'MOOV MONEY ' + m.moov, m.celtiis && 'CELTIIS CASH ' + m.celtiis].filter(Boolean); };
+const momoTxt = () => { const l = momoListe(); return l.length > 1 ? l.slice(0, -1).join(', ') + ' ou ' + l[l.length - 1] : l[0] || ''; };
 /* message WhatsApp au receveur : clair même si le patron l'envoie sans le relire */
 function msgReceveur(c, code, lien){ const a = aPayer(c), dest = net(c.destNom), exp = net(c.clientNom), ent = net(S.p.entreprise), colis = net(c.colis);
-  const de = /^[aeiouyhéèêàâîô]/i.test(ent) ? "d'" + ent : 'de ' + ent;
   const L = [`Bonjour${dest ? ' ' + dest : ''},`, '', `${exp || 'Un expéditeur'} vous envoie un colis${colis ? ' (' + colis + ')' : ''} avec ${ent}${c.code ? ', commande ' + c.code : ''}.`, ''];
-  if(a.dest > 0){ const det = c.payeur === 'dest' && +c.valeur > 0 ? ` (livraison ${F(c.frais)} + marchandise ${F(c.valeur)})` : c.payeur === 'dest' ? ' (frais de livraison)' : ' (marchandise)';
+  if(a.dest > 0){ const det = c.payeur === 'dest' && +c.valeur > 0 ? ` (livraison ${F(c.frais)} + marchandise ${F(c.valeur)})` : c.payeur === 'dest' ? ' (livraison)' : ' (marchandise)';
     L.push(`💰 À payer à la réception : ${F(a.dest)}${det}, à l'entreprise ${ent}.`);
-    L.push(S.p.momo ? `Payez par Mobile Money au ${net(S.p.momo)} (${ent}), motif ${c.code || ''}, ou en espèces au livreur, qui encaisse pour le compte ${de}.` : `Vous pouvez payer en espèces au livreur, qui encaisse pour le compte ${de}.`); }
+    L.push(`*Vous devez payer dès réception à ${ent}, uniquement par Mobile Money${momoTxt() ? ', à l\'un des numéros ' + momoTxt() : ''}. Tout paiement hors de ces numéros est considéré comme non valide par ${ent} et engage votre entière responsabilité.`); }
   else L.push("💰 Rien à payer pour vous : la livraison est réglée par l'expéditeur.");
-  if(code){ L.push('', `🔑 Votre code de réception : ${code}`, `Ne le donnez au livreur qu'au moment où vous recevez le colis, après l'avoir vérifié. Ce code prouve que vous l'avez bien reçu : sans lui, le livreur ne peut pas terminer la livraison.`); }
-  L.push('', `📍 Suivre le colis : ${lien}`); if(S.p.tel) L.push(`Une question ? ${ent} : ${net(S.p.tel)}`);
+  if(code){ L.push('', `🔑 Votre code de réception : ${code}`, `Ne le donnez au livreur qu'au moment où vous recevez le colis, après l'avoir vérifié. Ce code prouve que vous l'avez bien reçu : sans ce code, le livreur ne peut pas justifier la preuve de sa livraison.`); }
+  L.push('', `📍 Suivez votre colis en cliquant sur ce lien : ${lien}`, '', `Avez-vous une question ?${S.p.tel ? ' Appelez ' + ent + ' au ' + net(S.p.tel) + '.' : ''}`);
   return L.join('\n'); }
 const aPayer = c => { const fr = +c.frais || 0, v = +c.valeur || 0; return c.payeur === 'dest' ? {exp:0, dest:fr + v} : {exp:fr, dest:v}; };
-function payeHtml(c){ const a = aPayer(c), parts = [a.exp ? `chez l'expéditeur <b>${F(a.exp)}</b>` : '', a.dest ? `chez le receveur <b>${F(a.dest)}</b>` : ''].filter(Boolean);
-  return `<p class="paye">💰 ${c.payeur === 'dest' ? '<b>Le receveur paie</b> la livraison' : "<b>L'expéditeur paie</b> la livraison"} — à encaisser : ${parts.join(' · ') || 'rien'}</p>`; }
-const momoHtml = c => S.p.momo && !['livree','annulee'].includes(c.statut) ? `<p class="paye">📱 Vous pouvez payer par <b>Mobile Money</b> au <b>${esc(S.p.momo)}</b> (${esc(S.p.entreprise)}), motif : <b>${esc(c.code)}</b>. Montrez la confirmation au livreur.</p>` : '';
+/* paiement : toujours à l'entreprise, uniquement par Mobile Money ; le livreur ne touche jamais l'argent */
+function payeHtml(c, pourLivreur){ const a = aPayer(c), parts = [a.exp ? `l'expéditeur <b>${F(a.exp)}</b>` : '', a.dest ? `le receveur <b>${F(a.dest)}</b>` : ''].filter(Boolean);
+  return `<p class="paye">💰 ${c.payeur === 'dest' ? '<b>Le receveur paie</b> la livraison' : "<b>L'expéditeur paie</b> la livraison"} — payé à ${esc(S.p.entreprise)} <b>par Mobile Money</b> : ${parts.join(' · ') || 'rien à payer'}</p>`
+    + (pourLivreur ? `<p class="paye nocash">🚫 <b>Ne prends aucun argent en espèces.</b> Le client paie directement ${esc(S.p.entreprise)} par Mobile Money.</p>` : ''); }
+const momoHtml = c => momoListe().length && !['livree','annulee'].includes(c.statut) ? `<p class="paye">📱 Payez <b>uniquement par Mobile Money</b> à ${esc(S.p.entreprise)} : <b>${esc(momoTxt())}</b>. Motif : <b>${esc(c.code)}</b>. Tout paiement hors de ces numéros n'est pas valide. Ne donnez pas d'espèces au livreur.</p>` : '';
+const codeRappel = c => c.codeExige ? `<p class="codeRap">🔑 <b>À la remise du colis</b>, demande au receveur son <b>code de réception</b> (4 chiffres, reçu par WhatsApp). Sans ce code, tu ne pourras pas terminer la livraison.</p>` : '';
 const lienColis = id => location.href.split('#')[0] + '#colis-' + id;
 // ----- messages entre livreur, expéditeur et receveur -----
 const MSG_LV = ['🛵 Je suis en route', '🚦 Les bouchons me retardent', '🌧️ La pluie me retarde, j\'arrive dès que possible', '📍 Je suis arrivé, je vous attends', '📞 Je n\'arrive pas à vous joindre, rappelez-moi', '⛽ Petit arrêt carburant, j\'arrive'];
@@ -387,7 +400,7 @@ let invite = null;
 const installee = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); invite = e; document.querySelectorAll('.btnInst').forEach(b => b.hidden = false); });
-addEventListener('appinstalled', () => { invite = null; document.querySelectorAll('.btnInst').forEach(b => b.hidden = true); toast('✅ E-Courses est installée sur votre téléphone'); });
+addEventListener('appinstalled', () => { invite = null; document.querySelectorAll('.btnInst').forEach(b => b.hidden = true); toast('✅ ' + S.p.entreprise + ' est installée sur votre téléphone'); });
 const btnInstaller = () => installee() ? '' : `<button class="btn plein btnInst instal" data-a="installer" ${invite || iPhone() ? '' : 'hidden'}>📲 Installer l'application ${esc(S.p.entreprise)}</button>`;
 const STATUTS = {attente:'En attente', acceptee:'Livreur trouvé', recuperee:'Colis récupéré', livree:'Livré', annulee:'Annulé'};
 const S = {bloques:[], livraisons:[], livreurs:[], positions:[], versements:[], params:[], plaintes:[], lieux:[], messages:[], alertes:[], p:{...DEF}, ok:{}, svc:false, moi:null};
@@ -553,9 +566,9 @@ function surveiller(){ rappels(); const vu = ls.get('alarmes', {}); let msg = nu
     const jr = iso(Date.now());
     presencesSuspectes().forEach(({p, cl, k}) => { const cle = 'sus' + k + jr; if(!vu[cle + 'db']){ vu[cle + 'db'] = 1;
         DB.add('alertes', {type:'presence', livreurId:p.id, livreurNom:p.nom, clientNom:cl.nom, clientTel:cl.tel, t:Date.now()}); }
-      dire(cle, '🕵️ Présence suspecte', `${p.nom} est resté plus de 5 min chez ${cl.nom} (client régulier) sans course E-Courses en cours.`); });
-    S.livraisons.filter(c => etatCaisse(c) === 'avalider' && Date.now() - (c.livreeLe || 0) < 864e5).forEach(c => dire('enc' + c.id, '💰 Livraison terminée : argent à encaisser',
-      `${c.code} livré par ${c.livreurNom || 'le livreur'} : ${F(du(c))} attendus (déclaré encaissé : ${F(c.encaisse)}). Validez dans 💰 Caisse dès que vous avez reçu l'argent.`));
+      dire(cle, '🕵️ Présence suspecte', `${p.nom} est resté plus de 5 min chez ${cl.nom} (client régulier) sans course ${S.p.entreprise} en cours.`); });
+    S.livraisons.filter(c => etatCaisse(c) === 'avalider' && Date.now() - (c.livreeLe || 0) < 864e5).forEach(c => dire('enc' + c.id, '✅ Colis livré, code conforme',
+      `${c.code} remis ${net(c.destNom) ? 'à ' + net(c.destNom) : 'au receveur'} par ${c.livreurNom || 'le livreur'} à ${H(c.livreeLe)}${c.codeSaisi ? ' : code de réception vérifié' : c.valideParPatron ? ' (validé par vous sans code)' : ''}. ${du(c) ? F(du(c)) + ' à recevoir par Mobile Money : validez dans 💰 Caisse dès que le paiement est arrivé.' : 'Rien à encaisser.'}`));
     S.plaintes.filter(x => x.statut === 'ouverte').forEach(x => dire('p' + x.id, '📣 Nouvelle réclamation', `${x.code} — ${x.motif} (${x.qui === 'dest' ? 'destinataire' : 'client'})`)); }
   // client : chaque étape de sa commande lui est annoncée
   if(S.role === 'client'){ const c = S.livraisons.find(x => x.id === ls.get('cmd', null));
@@ -563,7 +576,7 @@ function surveiller(){ rappels(); const vu = ls.get('alarmes', {}); let msg = nu
       const T = {acceptee:['✅ Un livreur a reçu votre demande', `${c.livreurNom} a accepté votre demande. Il va bientôt partir vers vous. Patientez.`],
         acceptee_d:['🛵 Votre livreur est en route', `${c.livreurNom} vient vers vous. Suivez-le sur la carte.`],
         recuperee:['📦 Colis récupéré', `${c.livreurNom} a récupéré votre colis.`], recuperee_l:['🛵 En route vers le destinataire', `${c.livreurNom} part livrer votre colis.`],
-        livree:['🎉 Colis livré !', 'Votre colis a été remis. Merci de noter la livraison.'], annulee:['Demande annulée', c.annulePar === 'patron' ? 'Le responsable a annulé la demande. Appelez-le pour plus d\'informations.' : 'Votre demande est annulée.']};
+        livree:['🎉 Colis livré !', `Votre colis ${c.code} a été remis à ${net(c.destNom) || 'son destinataire'} à ${H(c.livreeLe)}${c.codeSaisi ? ', avec son code de réception (preuve de livraison)' : ''}. Merci de noter la livraison.`], annulee:['Demande annulée', c.annulePar === 'patron' ? 'Le responsable a annulé la demande. Appelez-le pour plus d\'informations.' : 'Votre demande est annulée.']};
       const t = T[c.statut + (c.statut === 'acceptee' && c.demarreLe ? '_d' : c.statut === 'recuperee' && c.demarreLivLe ? '_l' : '')];
       if(t && c.statut !== 'attente' && !vu[k]){ vu[k] = 1; if(!(c.statut === 'annulee' && c.annulePar === 'client')){ msg = t; bon = c.statut !== 'annulee'; } } } }
   // messages reçus
@@ -851,6 +864,7 @@ function suivreColis(id, c){ abo('r:msg:' + id, () => DB.watch('livraisons/' + i
 const attendre = c => new Promise(ok => { const t0 = Date.now(), f = () => S.ok[c] || Date.now() - t0 > 6000 ? ok() : setTimeout(f, 150); f(); });
 
 // ---------- codes secrets (patron, livreurs) : jamais stockés en clair ----------
+const patronConnecte = () => { try { return sessionStorage.getItem('pat') === '1'; } catch(e) { return false; } };
 async function hacher(...p){ const txt = ['ecourse', CONFIG.firebase.projectId || 'essai', ...p].join('|');
   if(!(window.crypto && crypto.subtle)) throw new Error('Ouvrez l\'application par son adresse https (sécurité du navigateur).');
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt)); return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''); }
@@ -894,7 +908,8 @@ function accueil(){ S.role = null; ls.set('role', null); garderEcran(false);
     <div class="opts">
       <button class="opt o1" data-a="go" data-id="client"><span class="ico">${ICO.colis}</span><span><b>J'envoie un colis</b><small>Appeler un livreur depuis ma position</small></span></button>
       <button class="opt o2" data-a="go" data-id="livreur"><span class="ico">${ICO.moto}</span><span><b>Je suis livreur</b><small>Voir les courses et partager ma position</small></span></button>
-      <button class="opt o3" data-a="go" data-id="patron"><span class="ico">${ICO.boss}</span><span><b>Espace patron</b><small>Livreurs, caisse et rapports</small></span></button>
+      <button class="opt o3" data-a="go" data-id="patron"><span class="ico">${ICO.boss}</span><span><b>Espace patron</b><small>${patronConnecte() ? '✅ Connecté : entrez sans code' : 'Livreurs, caisse et rapports'}</small></span></button>
+      ${patronConnecte() ? '<button class="btn s plein" data-a="deconnexion" style="margin-top:-4px">🔒 Se déconnecter (le code patron sera redemandé)</button>' : ''}
     </div><div style="margin-top:16px">${btnInstaller()}</div>
     ${avecMention() ? `<div class="kant"><p><b>Vous voulez une application comme celle-ci pour votre commerce ?</b></p><p>Conçue par <b>KANT</b> · ${CONCEPTEUR.tel}</p>${contactKant()}</div>` : ''}
     <p class="ver">LIVRAISONS · version ${VERSION}</p></section>`); }
@@ -980,10 +995,9 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       <p class="note" id="gInfo">Vous pouvez aussi toucher la carte pour placer le point.</p><div id="m1" class="map"></div>
       <label>Repère (quartier, carrefour, couleur du portail…)<input name="rep" required placeholder="Ex. Vèdoko, en face de la pharmacie"></label></fieldset>
     <fieldset class="sec s-dest"><legend>🏁 Où livrer</legend>
-      <label>Zone<select name="zone">${zoneOpts()}</select></label>
       <label>Rechercher le lieu de livraison<input id="q2" type="search" autocomplete="off" placeholder="Ex. Carrefour Calavi Kpota, Stade de l'Amitié…"></label>
       <div id="res2" class="res"></div>
-      <p class="note" id="gInfo2">Touchez la carte pour préciser le point de livraison (facultatif mais conseillé).</p><div id="m1b" class="map"></div>
+      <p class="note" id="gInfo2">Cherchez le lieu ci-dessus ou touchez la carte : <b>obligatoire pour calculer le prix</b>.</p><div id="m1b" class="map"></div>
       <label>Adresse ou repère de livraison<input name="dest" required></label>
       <label>Nom du destinataire<input name="dNom"></label>
       <label>Téléphone du destinataire<input name="dTel" type="tel"></label></fieldset>
@@ -991,8 +1005,10 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
     ${colisChamp()}
     ${delaiChamp()}
     <fieldset class="sec s-pay"><legend>💰 Prix et paiement</legend>
-    <label>Montant à encaisser chez le destinataire (0 si rien)<input name="val" type="number" min="0" value="0" inputmode="numeric"></label>
-    <div class="total">Frais de livraison <b id="fr"></b></div><p class="note" id="fid"></p>
+    <div id="prixBloc" class="prixBloc att">📍 Le prix s'affichera dès que vous aurez choisi <b>où le livreur prend le colis</b> et <b>où il le livre</b>.</div>
+    <label id="zoneLbl" hidden>Zone de livraison (trouvée d'après le lieu choisi, corrigez si besoin)<select name="zone"><option value="">— Choisissez la zone —</option>${zoneOpts()}</select></label>
+    <p class="note" id="fid"></p>
+    <label>Valeur de la marchandise, payée par le receveur (0 si rien)<input name="val" type="number" min="0" value="0" inputmode="numeric"></label>
     <p class="soustitre">Qui paie la livraison ?</p><div class="choix">
       <label><input type="radio" name="payeur" value="client" checked>💵 Je paie la livraison</label>
       <label><input type="radio" name="payeur" value="dest">🏠 Le receveur paie</label></div><p class="note" id="payInfo"></p></fieldset>
@@ -1009,30 +1025,40 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
     const m2 = carte('m1b');
     const setDest = p => { destPos = p; upd(); pin(m2, 'dest', p, '#1f9d55', 'Livraison'); m2 && m2.setView([p.lat, p.lng], 16); $('#gInfo2').textContent = 'Point de livraison placé. Touchez la carte pour corriger.'; };
     m2 && m2.on('click', ev => setDest({lat:ev.latlng.lat, lng:ev.latlng.lng}));
-    chercher($('#q2'), $('#res2'), x => { setDest({lat:x.lat, lng:x.lng}); if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse); upd();
+    chercher($('#q2'), $('#res2'), x => { setDest({lat:x.lat, lng:x.lng}); if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse + ' ' + x.court); upd();
       $('#m1b').scrollIntoView({behavior:'smooth', block:'center'}); });
-    upd = async () => { let fr = prix(f.zone.value), info = '';
-      if(modeKm()){ if(pos && destPos){ distCalc = await distanceKm(pos, destPos); fr = prixKm(distCalc); info = ` · ${kmT(distCalc)}`; } else fr = null; }
+    f.dest.addEventListener('change', () => { if(!f.zone.value) zoneAuto(f.zone, f.dest.value); upd(); });
+    /* le prix n'existe qu'une fois le départ ET l'arrivée choisis */
+    upd = async () => { let fr = null, info = '', msg = ''; const pret = !!(pos && destPos);
+      $('#zoneLbl').hidden = !pret || modeKm() || modeFixe(); f.zone.required = pret && !modeKm() && !modeFixe();
+      if(!pret) msg = `📍 Le prix s'affichera dès que vous aurez choisi ${!pos ? '<b>où le livreur prend le colis</b>' : ''}${!pos && !destPos ? ' et ' : ''}${!destPos ? '<b>où il le livre</b>' : ''}.`;
+      else if(modeFixe()){ fr = +S.p.prixFixe; info = 'Prix unique de livraison'; }
+      else if(modeKm()){ $('#prixBloc').innerHTML = '⏳ Calcul de la distance…'; distCalc = await distanceKm(pos, destPos); fr = prixKm(distCalc); info = `Distance ${kmT(distCalc)}`; }
+      else if(f.zone.value){ fr = prix(f.zone.value); info = 'Zone ' + esc(f.zone.value); }
+      else msg = '👇 Choisissez la zone de livraison ci-dessous pour connaître le prix.';
       const off = estOfferte(f.tel.value); if(off && fr != null) fr = 0; fraisCalc = fr;
-      $('#fr').textContent = fr == null ? 'placez les 2 lieux' : F(fr) + info + (off ? ' 🎁' : '');
+      $('#prixBloc').className = 'prixBloc' + (fr == null ? ' att' : '');
+      $('#prixBloc').innerHTML = fr == null ? msg : `<small>Prix de la livraison</small><b>${F(fr)}${off ? ' 🎁' : ''}</b><span>${info}</span>`;
       const rf = resteFid(f.tel.value);
-      $('#fid').innerHTML = off ? '🎁 <b>Cette livraison vous est offerte</b> grâce à votre fidélité !' : rf != null && telCle(f.tel.value).length >= 8 ? `🎁 Encore ${rf} livraison(s) avec E-Courses et la suivante est offerte.` : '';
+      $('#fid').innerHTML = off ? '🎁 <b>Cette livraison vous est offerte</b> grâce à votre fidélité !' : rf != null && telCle(f.tel.value).length >= 8 ? `🎁 Encore ${rf} livraison(s) avec ${esc(S.p.entreprise)} et la suivante est offerte.` : '';
       const dest = f.querySelector('[name=payeur]:checked').value === 'dest', v = +f.val.value || 0, frs = fr || 0;
       f.dTel.required = dest;
-      $('#payInfo').textContent = dest ? `Le receveur paiera ${F(frs + v)} à ${S.p.entreprise} à la réception (en espèces au livreur ou par Mobile Money). Son téléphone est obligatoire : il sera prévenu par WhatsApp.`
-        : `Vous paierez ${F(frs)} à ${S.p.entreprise} quand le livreur prendra le colis (en espèces au livreur ou par Mobile Money).${v ? ` Le receveur paiera ${F(v)} pour le colis.` : ''}`; };
+      $('#payInfo').textContent = fr == null ? '' : dest ? `Le receveur paiera ${F(frs + v)} à ${S.p.entreprise}, uniquement par Mobile Money, à la réception. Son téléphone est obligatoire : il recevra par WhatsApp les numéros de paiement et son code de réception.`
+        : `Vous paierez ${F(frs)} à ${S.p.entreprise}, uniquement par Mobile Money${momoTxt() ? ' (' + momoTxt() + ')' : ''}, quand le livreur prendra le colis.${v ? ` Le receveur paiera ${F(v)} pour la marchandise, par Mobile Money.` : ''} Ne donnez pas d'espèces au livreur.`; };
     f.zone.onchange = upd; f.val.oninput = upd; f.tel.onchange = upd; f.querySelectorAll('[name=payeur]').forEach(r => r.onchange = upd); upd(); $('#bGps').click();
-    f.onsubmit = async ev => { ev.preventDefault(); if(!pos) return toast('Indiquez où prendre le colis : bouton GPS ou touchez la carte');
-      const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
-      if(modeKm() && !destPos) return toast('Placez le lieu de livraison (recherche ou carte) : le prix dépend de la distance');
+    f.onsubmit = async ev => { ev.preventDefault();
       if((S.bloques || []).includes(telCle(f.tel.value))) return alarme('Commande impossible', "Ce numéro ne peut plus commander. Contactez l'entreprise" + (S.p.tel ? ' au ' + S.p.tel : '') + '.');
+      if(!pos) return toast('Indiquez où prendre le colis : bouton GPS ou touchez la carte');
+      const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
+      if(!destPos) return alarme('Où livrer ?', 'Cherchez le lieu de livraison ou touchez la carte « Où livrer ». Le prix se calcule à partir du départ et de l\'arrivée.');
+      await upd(); if(fraisCalc == null){ $('#prixBloc').scrollIntoView({behavior:'smooth', block:'center'}); return toast('Le prix n\'est pas encore connu : choisissez la zone de livraison'); }
       if(S.livraisons.filter(x => x.statut === 'attente').length >= 3) return alarme('Trop de demandes en attente', 'Vous avez déjà 3 demandes en attente. Patientez ou annulez-en une avant d\'en faire une nouvelle.');
       await upd(); const offerte = estOfferte(f.tel.value);
       const d = Object.fromEntries(new FormData(f)); ls.set('client', {nom:d.nom, tel:d.tel});
       const id = await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
-        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc != null ? fraisCalc : prix(d.zone), distanceKm:distCalc, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
+        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc, distanceKm:modeKm() ? distCalc : null, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
       const code = codeAleatoire(); await DB.set('codes', id + '_' + code, {t:Date.now()}); ls.set('code_' + id, code);
-      alerteDemande('🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc != null ? fraisCalc : prix(d.zone), limiteRecup:lim}), id);
+      alerteDemande('🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc, limiteRecup:lim}), id);
       ls.set('cmd', id); toast('✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }}); }
 const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexOf(c.statut); if(i < 0) return ''; if(i >= 2 || (i === 1 && c.demarreLe)) i++;
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
@@ -1074,7 +1100,7 @@ function suivi(id){ let w = 0; abonnerRole('client'); suivreColis(id);
       const enCourse = ['acceptee','recuperee'].includes(c.statut);
       $('#det').innerHTML = `<div class="card c-det">${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Votre livreur :</b><br><span class="gros">${esc(c.livreurNom)}</span></p></div>${enCourse || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : '<p class="note">🔒 Le numéro du livreur n\'est visible que pendant la course.</p>'}` : ''}
         <p><b>Livrer à :</b> ${esc(c.zone)} — ${esc(c.dest)}</p>${consignesHtml(c)}<p><b>Colis :</b> ${esc(c.colis || '')}</p>
-        ${S.p.masquer ? '<p class="note">🛡️ Passez toujours par E-Courses : votre colis est suivi et garanti, et vous cumulez des livraisons offertes.</p>' : ''}
+        ${S.p.masquer ? '<p class="note">🛡️ Passez toujours par ' + esc(S.p.entreprise) + ' : votre colis est suivi et garanti, et vous cumulez des livraisons offertes.</p>' : ''}
         ${c.statut === 'attente' ? `<button class="btn rouge plein" data-a="annulerC" data-id="${c.id}">Annuler la demande</button>` : ''}</div>`;
       const m = this.m; pin(m, 'dep', c.depart, '#e0412b', 'Prise du colis'); pin(m, 'cli', c.clientPos, '#2f6fdf', 'Vous'); pin(m, 'dst', c.destPos, '#1f9d55', 'Livraison');
       pin(m, 'liv', lv && lv.enService !== false && ['acceptee','recuperee'].includes(c.statut) ? lv : null, '#151515', 'Livreur');
@@ -1092,7 +1118,7 @@ function avisDest(id){ S.role = 'dest'; S.destId = id; abonnerRole('dest');
     $('#lst').innerHTML = `<p class="code">Colis ${esc(c.code)} envoyé par ${esc(c.clientNom)}</p><h2>${libelle(c)}</h2>${etapes(c)}
       ${code && !['livree','annulee'].includes(c.statut) ? `<div class="card c-code"><h3>🔑 Votre code de réception : <span class="codeBig">${code}</span></h3><p class="note">Donnez ce code au livreur <b>seulement quand vous avez le colis en main</b>. Sans lui, la livraison ne peut pas être validée.</p></div>` : ''}
       <div class="card"><p><b>Colis :</b> ${esc(c.colis || '')}</p>${consignesHtml(c)}
-      <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> à ${esc(S.p.entreprise)} à la réception (en espèces au livreur ou par Mobile Money)${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
+      <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> à ${esc(S.p.entreprise)} à la réception, <b>uniquement par Mobile Money</b>${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
       ${momoHtml(c)}${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Livreur :</b> ${esc(c.livreurNom)}</p></div>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
       ${c.livreurId ? `<div class="card c-msg"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'dest') || '<p class="note">Aucun message pour l\'instant.</p>'}
         ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'dest', MSG_DEST, 'livreur')}</div>` : ''}
@@ -1119,8 +1145,9 @@ async function livreurLogin(){ const sv = ls.get('role', {}) || {};
         toast('Code PIN incorrect'); } catch(er){ toast(er.message); }
       b.disabled = false; b.textContent = 'Entrer'; }; }}); }
 function solde(id){ const liv = S.livraisons.filter(c => c.livreurId === id && c.statut === 'livree');
-  const enc = sum(liv, c => c.encaisse), part = sum(liv, commission), vers = sum(S.versements.filter(v => v.livreurId === id), v => v.montant);
-  return {liv, enc, part, vers, reste: enc - part - vers}; }
+  /* le client paie l'entreprise par Mobile Money : c'est le patron qui doit au livreur ses gains (commission) */
+  const enc = 0, part = sum(liv, commission), vers = sum(S.versements.filter(v => v.livreurId === id && v.sens === 'paie'), v => v.montant);
+  return {liv, enc, part, vers, reste: part - vers}; }
 function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur'); S.lv = l; S.tab = tab; ls.set('role', {r:'livreur', id:l.id});
   if(ls.get('svc', false) && svcId == null) service(l, true);
   const bar = `<div class="lvbar"><div class="row" style="margin:0">${avatar(l.id, 'moyen')}<div><b>${esc(l.nom)}</b><small id="svcTxt"></small></div></div><label class="switch" aria-label="En service"><input type="checkbox" id="svc" ${S.svc ? 'checked' : ''}><span></span></label></div>`
@@ -1135,7 +1162,7 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur');
           .sort((a,b) => resteMin(a.c) - resteMin(b.c) || (a.e ? a.e.min : 1e9) - (b.e ? b.e.min : 1e9));
         const carteD = ({c, e, ok}) => `<div class="card ${ok ? '' : 'loin'}"><div class="row sb"><b>${esc(c.departTxt)}</b>${e ? `<span class="dist">≈ ${e.min} min</span>` : ''}</div>
           ${e ? (e.trajet ? `<p><span class="badge">Sur votre trajet (${detourT(e.detour)})</span></p>` : e.occupe ? '<p><span class="badge gris">Après votre course en cours</span></p>' : '') : '<p class="note">Position du client inconnue : appelez-le.</p>'}
-          <p>Vers ${esc(c.zone)} — ${esc(c.dest)}</p><p class="note">${esc(c.colis || 'Colis')} · demandé à ${H(c.creeLe)}</p>${consignesHtml(c)}${payeHtml(c)}${chrono(c)}
+          <p>Vers ${esc(c.zone)} — ${esc(c.dest)}</p><p class="note">${esc(c.colis || 'Colis')} · demandé à ${H(c.creeLe)}</p>${consignesHtml(c)}${payeHtml(c, true)}${chrono(c)}
           ${ok ? '' : `<p class="note">Vous arriveriez trop tard pour l'heure limite.</p>`}${gain(c)}
           <div class="row sb"><b>${F(c.frais)}</b><button class="btn ${ok ? 'jaune' : ''}" data-a="prendre" data-id="${c.id}">Accepter</button></div></div>`;
         const bons = rows.filter(r => r.ok), loin = rows.filter(r => !r.ok);
@@ -1145,12 +1172,12 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur');
         const mes = S.livraisons.filter(c => c.livreurId === l.id && ['acceptee','recuperee'].includes(c.statut));
         $('#lst').innerHTML = avert + (mes.length ? mes.map(c => { const p = c.clientPos || c.depart, d = km(S.moi, p);
           return `<div class="card"><div class="row sb">${pillC(c)}<span class="code">${esc(c.code)}</span></div>` + (c.statut === 'acceptee'
-          ? `<h3>Prendre chez ${esc(c.clientNom)}</h3><p>${esc(c.departTxt)} <span class="dist">${kmT(d)}${d != null ? ' · ≈ ' + minutes(d) + ' min' : ''}</span></p><p class="note">${esc(c.colis || '')}</p>${consignesHtml(c)}${payeHtml(c)}${chrono(c)}${c.demarreLe ? `<p class="parti">▶ Course démarrée à ${H(c.demarreLe)} — suivez le trajet bleu</p>` : ''}${gain(c)}
+          ? `<h3>Prendre chez ${esc(c.clientNom)}</h3><p>${esc(c.departTxt)} <span class="dist">${kmT(d)}${d != null ? ' · ≈ ' + minutes(d) + ' min' : ''}</span></p><p class="note">${esc(c.colis || '')}</p>${consignesHtml(c)}${payeHtml(c, true)}${codeRappel(c)}${chrono(c)}${c.demarreLe ? `<p class="parti">▶ Course démarrée à ${H(c.demarreLe)} — suivez le trajet bleu</p>` : ''}${gain(c)}
              <div class="row">${contact(c.clientTel)}${itin(p)}</div>${filMsgs(c.id, () => true, 'livreur', 3)}<button class="btn s plein" data-a="msgLv" data-id="${c.id}">💬 Envoyer un message</button>${c.demarreLe ? `<button class="btn jaune plein" data-a="recup" data-id="${c.id}">Colis récupéré</button>`
              : `<button class="btn noir plein" data-a="demarrer" data-id="${c.id}">▶ Démarrer vers le client</button>`}`
           : `<h3>Livrer à ${esc(c.destNom || 'destinataire')}</h3><p>${esc(c.zone)} — ${esc(c.dest)}</p>${consignesHtml(c)}<div class="row">${contact(c.destTel)}${itin(c.destPos)}</div>${filMsgs(c.id, () => true, 'livreur', 3)}<button class="btn s plein" data-a="msgLv" data-id="${c.id}">💬 Envoyer un message</button>
-             ${payeHtml(c)}${gain(c)}
-             ${c.demarreLivLe ? `<p class="parti">▶ En route vers le destinataire depuis ${H(c.demarreLivLe)}</p><button class="btn vert plein" data-a="livrer" data-id="${c.id}">Colis livré</button>`
+             ${payeHtml(c, true)}${codeRappel(c)}${gain(c)}
+             ${c.demarreLivLe ? `<p class="parti">▶ En route vers le destinataire depuis ${H(c.demarreLivLe)}</p><button class="btn vert plein" data-a="livrer" data-id="${c.id}">✅ Colis livré : saisir le code du receveur</button>`
              : `<button class="btn noir plein" data-a="demarrer" data-id="${c.id}">▶ Démarrer vers le destinataire</button>`}`) + '</div>'; }).join('')
           : '<p class="vide">Aucune course en cours. Allez dans « Demandes » pour en accepter une.</p>');
         const m = this.m; pin(m, 'moi', S.moi, '#151515', 'Moi');
@@ -1160,13 +1187,12 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur');
         trajet(m, S.moi, enRoute && (enRoute.statut === 'acceptee' ? pointRecup(enRoute) : enRoute.destPos)); $('#rt').textContent = RT.info || (!mes.length ? '' : !S.svc ? 'Activez « En service » pour voir le trajet.' : !S.moi ? 'Le trajet s\'affichera dès que votre position sera trouvée.' : 'Calcul du trajet…');
       } else { const s = solde(l.id), t0 = jour(Date.now()), auj = s.liv.filter(c => c.livreeLe >= t0);
         const meL = S.livreurs.find(x => x.id === l.id) || l;
-        const ntfyHtml = (S.p.ntfyActif && S.p.ntfyCanal && !meL.ntfyOk ? '<p class="alerte">⚠️ Obligatoire pour travailler avec E-Courses : installez ntfy et abonnez-vous à vos 2 canaux ci-dessous, puis faites vérifier par le patron.</p>' : '') + (S.p.ntfyActif && S.p.ntfyCanal ? `<div class="card"><h3>🔔 Être alerté téléphone verrouillé</h3><p class="note">Installez l'application <b>ntfy</b>, touchez <b>+</b> et abonnez-vous à ces 2 canaux (avec « livraison instantanée ») :</p><p class="lienTxt">${esc(S.p.ntfyCanal)}</p><p class="lienTxt">${esc(canalLv(l.id))}</p><p class="note">Dans les réglages de ntfy, activez la sonnerie insistante : votre téléphone sonnera comme un appel, même écran éteint.</p><p class="note">🔋 Paramètres du téléphone → Applications → ntfy → Batterie → « Non restreinte ».</p><button class="btn s jaune" data-a="testLv" data-id="${l.id}">🔔 Tester mes alertes</button></div>` : '');
-        $('#lst').innerHTML = ntfyHtml + `<h3>Aujourd'hui</h3><div class="kpis"><div class="kpi"><small>Courses livrées</small><b>${auj.length}</b></div>
-          <div class="kpi"><small>Frais</small><b>${F(sum(auj, c => c.frais))}</b></div><div class="kpi"><small>Encaissé</small><b>${F(sum(auj, c => c.encaisse))}</b></div></div>
-          ${(() => { const mo = moyenne(l.id); return mo ? `<p>Ma note : <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} / 5 (${mo.n} avis)</p>` : ''; })()}<h3>Ma caisse (depuis le début)</h3><div class="kpis"><div class="kpi"><small>Encaissé</small><b>${F(s.enc)}</b></div>
-          ${s.part ? `<div class="kpi"><small>Ma commission</small><b>${F(s.part)}</b></div>` : ''}
-          <div class="kpi"><small>Déjà versé</small><b>${F(s.vers)}</b></div><div class="kpi fort"><small>Reste à verser</small><b>${F(s.reste)}</b></div></div>
-          <h3>Livrées aujourd'hui</h3>${auj.length ? `<table><tr><th>Heure</th><th>Zone</th><th class="n">Encaissé</th></tr>${auj.sort((a,b) => b.livreeLe - a.livreeLe).map(c => `<tr><td>${H(c.livreeLe)}</td><td>${esc(c.zone)}</td><td class="n">${F(c.encaisse)}</td></tr>`).join('')}</table>` : '<p class="note">Aucune pour l\'instant.</p>'}`; } } }); }
+        const ntfyHtml = (S.p.ntfyActif && S.p.ntfyCanal && !meL.ntfyOk ? '<p class="alerte">⚠️ Obligatoire pour travailler avec ' + esc(S.p.entreprise) + ' : installez ntfy et abonnez-vous à vos 2 canaux ci-dessous, puis faites vérifier par le patron.</p>' : '') + (S.p.ntfyActif && S.p.ntfyCanal ? `<div class="card"><h3>🔔 Être alerté téléphone verrouillé</h3><p class="note">Installez l'application <b>ntfy</b>, touchez <b>+</b> et abonnez-vous à ces 2 canaux (avec « livraison instantanée ») :</p><p class="lienTxt">${esc(S.p.ntfyCanal)}</p><p class="lienTxt">${esc(canalLv(l.id))}</p><p class="note">Dans les réglages de ntfy, <b>désactivez la sonnerie insistante</b> et choisissez une <b>sonnerie de téléphone</b> pour la « Priorité max » : l'application vous sonne chaque minute jusqu'à ce que vous répondiez, comme un appel, même écran éteint.</p><p class="note">🔋 Paramètres du téléphone → Applications → ntfy → Batterie → « Non restreinte ».</p><button class="btn s jaune" data-a="testLv" data-id="${l.id}">🔔 Tester mes alertes</button></div>` : '');
+        $('#lst').innerHTML = ntfyHtml + `<p class="paye nocash">🚫 Tu ne prends jamais d'argent : les clients paient ${esc(S.p.entreprise)} par Mobile Money. Le patron te paie tes gains.</p><h3>Aujourd'hui</h3><div class="kpis"><div class="kpi"><small>Courses livrées</small><b>${auj.length}</b></div>
+          <div class="kpi v"><small>Mes gains du jour</small><b>${F(sum(auj, commission))}</b></div></div>
+          ${(() => { const mo = moyenne(l.id); return mo ? `<p>Ma note : <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} / 5 (${mo.n} avis)</p>` : ''; })()}<h3>Mes gains (depuis le début)</h3><div class="kpis"><div class="kpi"><small>Courses livrées</small><b>${s.liv.length}</b></div><div class="kpi v"><small>Mes gains</small><b>${F(s.part)}</b></div>
+          <div class="kpi"><small>Déjà payé par le patron</small><b>${F(s.vers)}</b></div><div class="kpi fort"><small>Reste à me payer</small><b>${F(s.reste)}</b></div></div>
+          <h3>Livrées aujourd'hui</h3>${auj.length ? `<table><tr><th>Heure</th><th>Commande</th><th class="n">Mon gain</th></tr>${auj.sort((a,b) => b.livreeLe - a.livreeLe).map(c => `<tr><td>${H(c.livreeLe)}</td><td>${esc(c.code)}</td><td class="n">${F(commission(c))}</td></tr>`).join('')}</table>` : '<p class="note">Aucune pour l\'instant.</p>'}`; } } }); }
 
 // ---------- patron ----------
 async function patronLogin(){
@@ -1218,7 +1244,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       const att = L0.filter(c => c.statut === 'attente'), enc = L0.filter(c => ['acceptee','recuperee'].includes(c.statut)), act = lvActifs();
       $('#k').innerHTML = `<div class="kpi fort"><small>En attente</small><b>${att.length}</b></div><div class="kpi"><small>En cours</small><b>${enc.length}</b></div>
         <div class="kpi"><small>Livrées aujourd'hui</small><b>${liv.length}</b></div><div class="kpi"><small>Livreurs en service</small><b>${act.length}</b></div>
-        <div class="kpi"><small>Frais du jour</small><b>${F(sum(liv, c => c.frais))}</b></div><div class="kpi"><small>Encaissé du jour</small><b>${F(sum(liv, c => c.encaisse))}</b></div>`;
+        <div class="kpi"><small>Frais du jour</small><b>${F(sum(liv, c => c.frais))}</b></div><div class="kpi"><small>Mobile Money reçu aujourd'hui</small><b>${F(sum(L0.filter(c => c.encValide && c.encValideLe >= t0), c => c.encRecu))}</b></div>`;
       $('#lst').innerHTML = `<h3>Demandes en attente</h3>${att.map(c => carteLivraison(c, 1)).join('') || '<p class="note">Aucune.</p>'}
         <h3>Courses en cours</h3>${enc.map(c => carteLivraison(c, 1)).join('') || '<p class="note">Aucune.</p>'}`;
       const m = this.m; act.forEach(p => pin(m, 'l' + p.id, p, '#151515', p.nom)); att.forEach(c => pin(m, 'a' + c.id, c.clientPos || c.depart, '#e0412b', c.code));
@@ -1272,13 +1298,13 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       const recuLe = (a, b) => sum(L.filter(c => c.encValide && c.encValideLe >= a && c.encValideLe < b), c => c.encRecu);
       $('#cK').innerHTML = `<div class="kpis"><div class="kpi a"><small>⏳ À valider (${val.length})</small><b>${F(sum(val, du))}</b></div><div class="kpi c"><small>📦 En cours (${cours.length})</small><b>${F(sum(cours, du))}</b></div>
         <div class="kpi v"><small>✅ Reçu aujourd'hui</small><b>${F(recuLe(t0, t0 + 864e5))}</b></div><div class="kpi fort"><small>Reçu ce mois</small><b>${F(recuLe(m0, now + 1))}</b></div></div>`;
-      $('#cVal').innerHTML = `<h3 class="sec">⏳ Livrées : argent à valider</h3><p class="note">Validez seulement quand vous avez <b>vraiment reçu l'argent</b> (espèces du livreur ou Mobile Money). Tant que ce n'est pas fait, la commande reste ici.</p>`
-        + (val.map(c => { const e = etatCaisse(c), ec = (+c.encaisse || 0) !== du(c);
+      $('#cVal').innerHTML = `<h3 class="sec">⏳ Livrées : paiement Mobile Money à valider</h3><p class="note">Le colis est livré (code du receveur vérifié). Validez quand le <b>Mobile Money est vraiment arrivé</b> sur vos numéros. Tant que ce n'est pas fait, la commande reste ici.</p>`
+        + (val.map(c => { const e = etatCaisse(c);
           return `<div class="card encCard ${e === 'nonrecu' ? 'r' : ''}"><div class="row sb"><b>${esc(c.code)}</b>${etq(e)}</div>
-            <p class="note">Livrée le ${D(c.livreeLe)} à ${H(c.livreeLe)} par <b>${esc(c.livreurNom || '—')}</b> · ${esc(net(c.destNom) || 'receveur')} · ${c.payeur === 'dest' ? 'payé par le receveur' : "frais payés par l'expéditeur"}</p>
-            <div class="row sb"><span>Attendu</span><b class="gros">${F(du(c))}</b></div>
-            <p>Le livreur déclare avoir encaissé <b class="${ec ? 'ecart' : ''}">${F(c.encaisse)}</b>${ec ? ' ⚠️ différent du montant attendu' : ''}</p>
-            <div class="row"><button class="btn vert" data-a="encOk" data-id="${c.id}">✅ Argent reçu</button>${e === 'nonrecu' ? '' : `<button class="btn rouge" data-a="encNon" data-id="${c.id}">⚠️ Pas encore reçu</button>`}${c.livreurTel ? contact(c.livreurTel) : ''}</div></div>`; }).join('') || '<p class="vide">Rien à valider. 👍</p>');
+            <p class="note">Livrée le ${D(c.livreeLe)} à ${H(c.livreeLe)} par <b>${esc(c.livreurNom || '—')}</b>${net(c.destNom) ? ' à ' + esc(net(c.destNom)) : ''} · ${c.codeSaisi ? '🔑 code vérifié' : c.valideParPatron ? 'validée par vous sans code' : ''}</p>
+            <div class="row sb"><span>À recevoir par Mobile Money</span><b class="gros">${F(du(c))}</b></div>
+            <p class="note">${[aPayer(c).exp ? "Expéditeur (" + esc(net(c.clientNom)) + ") : " + F(aPayer(c).exp) : '', aPayer(c).dest ? "Receveur (" + esc(net(c.destNom) || '—') + ") : " + F(aPayer(c).dest) : ''].filter(Boolean).join(' · ')}</p>
+            <div class="row"><button class="btn vert" data-a="encOk" data-id="${c.id}">✅ Mobile Money reçu</button>${e === 'nonrecu' ? '' : `<button class="btn rouge" data-a="encNon" data-id="${c.id}">⚠️ Pas encore reçu</button>`}${c.destTel ? `<a class="btn s" href="tel:${num(c.destTel)}">Appeler le receveur</a>` : ''}</div></div>`; }).join('') || '<p class="vide">Rien à valider. 👍</p>');
       $('#cCours').innerHTML = `<h3 class="sec">📦 Commandes en cours (${cours.length})</h3>` + (cours.length ? `<div class="scroll"><table><tr><th>Commande</th><th>Étape</th><th>Livreur</th><th class="n">Attendu</th></tr>${cours.map(c => `<tr><td><b>${esc(c.code)}</b><br><span class="note">${D(c.creeLe)} ${H(c.creeLe)}</span></td><td><span class="pill ${c.statut}">${libelle(c)}</span></td><td>${esc(c.livreurNom || '—')}</td><td class="n"><b>${F(du(c))}</b></td></tr>`).join('')}<tr class="tot"><td colspan="3">Total attendu</td><td class="n">${F(sum(cours, du))}</td></tr></table></div>` : '<p class="note">Aucune.</p>');
       // historique filtré
       const a = +new Date(f.du + 'T00:00'), b = +new Date(f.au + 'T00:00') + 864e5, dt = c => c.livreeLe || c.annuleeLe || c.creeLe;
@@ -1307,18 +1333,18 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       S.cTxt = `Caisse ${S.p.entreprise} du ${D(a)} au ${D(b - 1)}\n` + inv.map(([t, n, m]) => `${t} : ${n} (${F(m)})`).join('\n') + '\n\nLivrées :\n' + sous.map(([t, n, m]) => `${t} : ${n} (${F(m)})`).join('\n')
         + '\n\nPar livreur :\n' + rows.map((x, i) => `${i + 1}. ${x.nom} : ${x.n} livraisons, reçu ${F(x.recu)}, à valider ${F(x.aval)}`).join('\n');
       // versements groupés (ancien système, facultatif)
-      const vs = S.versements.slice().sort((p, q) => q.date - p.date).slice(0, 30);
-      $('#cVers').innerHTML = `<details class="card"><summary><b>💵 Versements groupés des livreurs (facultatif)</b></summary><p class="note">Si un livreur vous remet l'argent de plusieurs courses d'un coup : encaissé − sa commission − versements déjà faits.</p>
-        ${S.livreurs.map(l => { const so = solde(l.id); return `<div class="row sb"><b>${esc(l.nom)}</b><b>${F(so.reste)}</b></div><p class="note">Encaissé ${F(so.enc)}${so.part ? ' · commission ' + F(so.part) : ''} · versé ${F(so.vers)}</p><button class="btn s jaune" data-a="versement" data-id="${l.id}">Enregistrer un versement</button>`; }).join('<hr>') || '<p class="vide">Aucun livreur.</p>'}
-        <h3>Derniers versements</h3>${vs.length ? `<table><tr><th>Date</th><th>Livreur</th><th class="n">Montant</th></tr>${vs.map(v => `<tr><td>${D(v.date)}</td><td>${esc(v.livreurNom)}${v.note ? '<br><span class="note">' + esc(v.note) + '</span>' : ''}</td><td class="n">${F(v.montant)}</td></tr>`).join('')}</table>` : '<p class="note">Aucun.</p>'}</details>`; }},
+      const vs = S.versements.filter(v => v.sens === 'paie').sort((p, q) => q.date - p.date).slice(0, 30);
+      $('#cVers').innerHTML = `<details class="card"><summary><b>💵 Paiement des livreurs (leurs gains)</b></summary><p class="note">Les clients vous paient par Mobile Money : c'est vous qui payez à chaque livreur sa commission. Reste à payer = ses gains − ce que vous lui avez déjà payé.</p>
+        ${S.livreurs.map(l => { const so = solde(l.id); return `<div class="row sb"><b>${esc(l.nom)}</b><b>${F(so.reste)}</b></div><p class="note">${so.liv.length} livraison(s) · gains ${F(so.part)} · déjà payé ${F(so.vers)}</p><button class="btn s jaune" data-a="versement" data-id="${l.id}">Enregistrer un paiement</button>`; }).join('<hr>') || '<p class="vide">Aucun livreur.</p>'}
+        <h3>Derniers paiements aux livreurs</h3>${vs.length ? `<table><tr><th>Date</th><th>Livreur</th><th class="n">Montant</th></tr>${vs.map(v => `<tr><td>${D(v.date)}</td><td>${esc(v.livreurNom)}${v.note ? '<br><span class="note">' + esc(v.note) + '</span>' : ''}</td><td class="n">${F(v.montant)}</td></tr>`).join('')}</table>` : '<p class="note">Aucun.</p>'}</details>`; }},
   rap: {h:`<div class="pad"><div class="row"><button class="btn s" data-a="preset" data-id="j">Aujourd'hui</button><button class="btn s" data-a="preset" data-id="m">Ce mois</button><button class="btn s" data-a="preset" data-id="p">Mois dernier</button></div>
       <div class="row"><label style="flex:1">Du<input id="rDu" type="date" value="${S.rDu || iso(Date.now())}"></label><label style="flex:1">Au<input id="rAu" type="date" value="${S.rAu || iso(Date.now())}"></label></div><div id="lst"></div></div>`,
     init(){ $('#rDu').onchange = $('#rAu').onchange = () => { S.rDu = $('#rDu').value; S.rAu = $('#rAu').value; VUE.refresh(); }; },
     refresh(){ const a = +new Date($('#rDu').value + 'T00:00'), b = +new Date($('#rAu').value + 'T00:00') + 864e5;
       const liv = S.livraisons.filter(c => c.statut === 'livree' && c.livreeLe >= a && c.livreeLe < b);
       const ann = S.livraisons.filter(c => c.statut === 'annulee' && c.creeLe >= a && c.creeLe < b).length;
-      const grp = k => { const g = {}; liv.forEach(c => { const x = g[c[k] || '—'] = g[c[k] || '—'] || {n:0, f:0, e:0, c:0}; x.n++; x.f += +c.frais || 0; x.e += +c.encaisse || 0; x.c += commission(c); }); return Object.entries(g).sort((x,y) => y[1].n - x[1].n); };
-      const avecC = S.p.part || S.p.fixe, pl = grp('livreurNom'), pz = grp('zone'), tf = sum(liv, c => c.frais), te = sum(liv, c => c.encaisse);
+      const grp = k => { const g = {}; liv.forEach(c => { const x = g[c[k] || '—'] = g[c[k] || '—'] || {n:0, f:0, e:0, c:0}; x.n++; x.f += +c.frais || 0; x.e += c.encValide ? +c.encRecu || 0 : 0; x.c += commission(c); }); return Object.entries(g).sort((x,y) => y[1].n - x[1].n); };
+      const avecC = S.p.part || S.p.fixe, pl = grp('livreurNom'), pz = grp('zone'), tf = sum(liv, c => c.frais), te = sum(liv, c => c.encValide ? c.encRecu : 0);
       const tab = (t, rows, cm) => `<h3>${t}</h3><div class="scroll"><table><tr><th></th><th class="n">Courses</th><th class="n">Frais</th><th class="n">Encaissé</th>${cm ? '<th class="n">Commission</th>' : ''}</tr>${rows.map(([k,x]) => `<tr><td>${esc(k)}</td><td class="n">${x.n}</td><td class="n">${F(x.f)}</td><td class="n">${F(x.e)}</td>${cm ? `<td class="n">${F(x.c)}</td>` : ''}</tr>`).join('')}</table></div>`;
       S.rapTxt = `Rapport ${S.p.entreprise} du ${D(a)} au ${D(b - 1)}\nLivraisons : ${liv.length} (annulées : ${ann})\nFrais : ${F(tf)}\nEncaissé : ${F(te)}\n\nPar livreur :\n` + pl.map(([k,x]) => `- ${k} : ${x.n} courses, ${F(x.f)} de frais, ${F(x.e)} encaissés${avecC ? ', commission ' + F(x.c) : ''}`).join('\n') + '\n\nPar zone :\n' + pz.map(([k,x]) => `- ${k} : ${x.n} courses, ${F(x.f)}`).join('\n');
       $('#lst').innerHTML = `<div class="kpis"><div class="kpi fort"><small>Livraisons</small><b>${liv.length}</b></div><div class="kpi"><small>Frais</small><b>${F(tf)}</b></div>
@@ -1342,7 +1368,9 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       <p class="note">Mettez 0 et 0 si vos livreurs sont salariés.</p></fieldset>
       <label>Types de colis proposés aux clients (un par ligne)<textarea name="typesColis" rows="7">${esc(S.p.typesColis.join('\n'))}</textarea></label>
       <fieldset class="sec s-colis"><legend>📏 Calcul du prix de livraison</legend>
-      <label>Mode de calcul<select name="tarifMode"><option value="zone" ${!modeKm() ? 'selected' : ''}>Par zone (tarifs ci-dessous)</option><option value="km" ${modeKm() ? 'selected' : ''}>Selon la distance réelle récupération → livraison</option></select></label>
+      <label>Mode de calcul<select name="tarifMode"><option value="zone" ${!modeKm() && S.p.tarifMode !== 'fixe' ? 'selected' : ''}>Par zone (tarifs de la liste des zones)</option><option value="km" ${modeKm() ? 'selected' : ''}>Selon la distance réelle récupération → livraison</option><option value="fixe" ${S.p.tarifMode === 'fixe' ? 'selected' : ''}>Prix unique que j'écris moi-même</option></select></label>
+      <label>Prix unique de livraison (F), pour le mode « Prix unique »<input name="prixFixe" type="number" min="0" inputmode="numeric" value="${+S.p.prixFixe || ''}" placeholder="Ex. 1500"></label>
+      <p class="note">Dans tous les modes, le prix n'est montré au client qu'après le choix du départ et de l'arrivée. Pour une commande par téléphone, vous pouvez toujours écrire vous-même un autre prix.</p>
       <label>Prix de départ (F)<input name="base" type="number" min="0" value="${+S.p.base || 0}"></label>
       <label>Prix par kilomètre (F)<input name="parKm" type="number" min="0" value="${+S.p.parKm || 0}"></label>
       <label>Prix minimum (F)<input name="minimum" type="number" min="0" value="${+S.p.minimum || 0}"></label>
@@ -1350,7 +1378,12 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       <fieldset class="sec s-reco"><legend>🎁 Fidélité et anti-contournement</legend>
       <label>Livraison offerte toutes les N livraisons (0 = non)<input name="fidelite" type="number" min="0" value="${+S.p.fidelite || 0}"></label>
       <div class="choix"><label><input type="checkbox" name="masquer" ${S.p.masquer ? 'checked' : ''}>Cacher les numéros livreur ↔ client en dehors des courses</label></div>
-      <label>Numéro Mobile Money de l'entreprise (le client paie l'entreprise, pas le livreur)<input name="momo" type="tel" value="${esc(S.p.momo)}"></label>
+      </fieldset><fieldset class="sec s-pay"><legend>📱 Paiement : uniquement par Mobile Money</legend>
+      <p class="note">Les clients paient <b>l'entreprise</b>, jamais le livreur en espèces. Ces numéros apparaissent dans le message WhatsApp du receveur et sur le suivi du colis. Laissez vide un réseau que vous n'utilisez pas.</p>
+      <label>MTN MoMo<input name="momoMtn" type="tel" value="${esc(momoN().mtn)}" placeholder="01 91 02 30 00"></label>
+      <label>Moov Money<input name="momoMoov" type="tel" value="${esc(momoN().moov)}" placeholder="01 xx xx xx xx"></label>
+      <label>Celtiis Cash<input name="momoCeltiis" type="tel" value="${esc(momoN().celtiis)}" placeholder="01 xx xx xx xx"></label></fieldset>
+      <fieldset class="sec s-reco"><legend>🔔 Rappels et relances</legend>
       <label>Rappeler le livreur (et prévenir le patron) toutes les<select name="rappelMin">${[5,10,15,20].map(n => `<option value="${n}" ${(+S.p.rappelMin || 10) === n ? 'selected' : ''}>${n} minutes</option>`).join('')}</select></label>
       <p class="note">Tant que le colis n'est pas récupéré, le livreur est rappelé (sonnerie + ntfy). Dès le 2ᵉ rappel, le patron est prévenu. Les demandes que personne n'accepte sont aussi rappelées à tous.</p>
       <label>Relancer un client régulier après combien de jours sans commande<input name="relanceJours" type="number" min="1" value="${+S.p.relanceJours || 14}"></label>
@@ -1383,7 +1416,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       const zones = d.zones.split('\n').map(x => x.split('=')).filter(x => x.length === 2 && x[0].trim()).map(([n,p]) => ({n:n.trim(), p:+num(p) || 0}));
       if(!zones.length) return toast('Ajoutez au moins une zone');
       if(d.pinNouveau){ await creerClePatron(d.pinNouveau.trim()); toast('🔒 Nouveau code patron enregistré'); }
-      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momo:(d.momo || '').trim(), relanceJours:+d.relanceJours || 14, rappelMin:+d.rappelMin || 10, ntfyActif:!!d.ntfyActif, ecranAllume:!!d.ecranAllume, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
+      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, prixFixe:+d.prixFixe || 0, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momoMtn:(d.momoMtn || '').trim(), momoMoov:(d.momoMoov || '').trim(), momoCeltiis:(d.momoCeltiis || '').trim(), momo:(d.momoMtn || '').trim(), relanceJours:+d.relanceJours || 14, rappelMin:+d.rappelMin || 10, ntfyActif:!!d.ntfyActif, ecranAllume:!!d.ecranAllume, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
   }[tab];
   show(T + `<div class="vue t-${tab}">` + V.h + '</div>', V); }
 
@@ -1397,9 +1430,9 @@ const ACT = {
   async installer(){ if(invite){ invite.prompt(); const r = await invite.userChoice; if(r.outcome === 'accepted') invite = null; return; }
     modal(`<h2>📲 Installer ${esc(S.p.entreprise)}</h2>${iPhone() ? '<p>Dans Safari, touchez le bouton <b>Partager</b> (carré avec une flèche), puis <b>« Sur l\'écran d\'accueil »</b>, puis <b>Ajouter</b>.</p>'
       : '<p>Dans Chrome, touchez <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b>.</p><p class="note">Si vous voyez seulement « Ajouter à l\'écran d\'accueil », rechargez la page et attendez quelques secondes.</p>'}<button class="btn plein" data-a="fermer">Fermer</button>`); },
-  testLv(id){ const l = S.livreurs.find(x => x.id === id); ntfy(canalLv(id), '🔔 Test E-Courses', `Bonjour ${l ? l.nom : ''}, vos alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.`, 5, '#livreur'); toast('Une alerte de test envoyée : le téléphone doit sonner'); },
+  testLv(id){ const l = S.livreurs.find(x => x.id === id); ntfy(canalLv(id), '🔔 Test ' + S.p.entreprise, `Bonjour ${l ? l.nom : ''}, vos alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.`, 5, '#livreur'); toast('Une alerte de test envoyée : le téléphone doit sonner'); },
   async ntfyOk(id){ const l = S.livreurs.find(x => x.id === id); await DB.set('livreurs', id, {ntfyOk: !l.ntfyOk}); },
-  testNtfy(){ ntfy(canalPatron(), '🔔 Test E-Courses', 'Les alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.', 5, '#patron'); toast('Une alerte de test envoyée : touchez la notification pour arrêter la sonnerie'); },
+  testNtfy(){ ntfy(canalPatron(), '🔔 Test ' + S.p.entreprise, 'Les alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.', 5, '#patron'); toast('Une alerte de test envoyée : touchez la notification pour arrêter la sonnerie'); },
   voirPhoto(id){ const l = S.livreurs.find(x => x.id === id); if(!l || !l.photo) return; modal(`<h2>${esc(l.nom)}</h2><img src="${l.photo}" alt="" style="width:100%;border-radius:14px"><button class="btn plein" data-a="fermer">Fermer</button>`); },
   ferAl(k){ sansAlerte(k); },
   raz(){ const n = c => S[c].length;
@@ -1446,7 +1479,7 @@ const ACT = {
     await DB.set('livraisons', id, {payeur:qui, payeurLe:Date.now(), payeurPar:'client'});
     { const t = `${c.code} : c'est ${qui === 'dest' ? 'le RECEVEUR' : "l'EXPÉDITEUR"} qui paie la livraison.`; ntfy(canalPatron(), '💰 Paiement choisi par le client', t, 4, '#patron'); if(c.livreurId) ntfy(canalLv(c.livreurId), '💰 Paiement choisi par le client', t, 4, '#livreur'); }
     if(qui === 'dest') ACT.prevenirDest(id);
-    else alarme('✅ Choix envoyé', `${c.livreurNom ? 'Le patron et le livreur ' + c.livreurNom + ' sont prévenus' : 'Le patron est prévenu'} : vous payez ${F(c.frais)} à ${S.p.entreprise} (en espèces au livreur ou par Mobile Money).`, true); },
+    else alarme('✅ Choix envoyé', `${c.livreurNom ? 'Le patron et le livreur ' + c.livreurNom + ' sont prévenus' : 'Le patron est prévenu'} : vous payez ${F(c.frais)} à ${S.p.entreprise}, uniquement par Mobile Money${momoTxt() ? ' (' + momoTxt() + ')' : ''}.`, true); },
   prevenirDest(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return; const a = aPayer({...c, payeur:'dest'});
     const code = ls.get('code_' + id, null);
     const txt = msgReceveur({...c, payeur:'dest'}, code, lienColisCode(id, code));
@@ -1454,13 +1487,15 @@ const ACT = {
       <p><b>Prévenez maintenant le receveur</b> (${esc(c.destTel || 'numéro manquant')}) : un message tout prêt s'ouvre dans WhatsApp, il suffit d'appuyer sur Envoyer.</p>
       ${c.destTel ? `<a class="btn vert plein" href="${wa(c.destTel, txt)}">📲 Prévenir le receveur par WhatsApp</a>` : ''}<button class="btn plein" data-a="fermer">Plus tard</button>`); },
   encOk(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return;
-    modal(`<h2>✅ Argent reçu : ${esc(c.code)}</h2><p>Attendu : <b>${F(du(c))}</b> · déclaré par ${esc(c.livreurNom || 'le livreur')} : <b>${F(c.encaisse)}</b></p>
-      <form id="fm" class="form"><label>Montant que vous avez réellement reçu (F CFA)<input id="mt" type="number" min="0" inputmode="numeric" required value="${+c.encaisse || du(c)}"></label>
-      <label>Reçu comment ?<select id="md"><option>Espèces remises par le livreur</option><option>Mobile Money</option><option>Autre</option></select></label>
-      <label>Note (facultatif)<input id="nt" placeholder="Ex. reçu en 2 fois"></label>
+    const m = momoN(), res = [m.mtn && 'MTN MoMo', m.moov && 'Moov Money', m.celtiis && 'Celtiis Cash'].filter(Boolean).concat(['Autre']);
+    modal(`<h2>✅ Mobile Money reçu : ${esc(c.code)}</h2><p>À recevoir : <b>${F(du(c))}</b></p>
+      <form id="fm" class="form"><label>Montant réellement arrivé sur votre compte (F CFA)<input id="mt" type="number" min="0" inputmode="numeric" required value="${du(c)}"></label>
+      <label>Sur quel réseau ?<select id="md">${res.map(x => `<option>${x}</option>`).join('')}</select></label>
+      <label>Référence de la transaction (facultatif)<input id="ref" placeholder="Ex. ID du SMS de confirmation"></label>
+      <label>Note (facultatif)<input id="nt" placeholder="Ex. payé en 2 fois"></label>
       <button class="btn vert plein">Valider : l'argent entre dans la caisse</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
       $('#fm').onsubmit = async ev => { ev.preventDefault(); const mt = +$('#mt').value || 0;
-        await DB.set('livraisons', id, {encValide:true, encValideLe:Date.now(), encRecu:mt, encMode:$('#md').value, encNote:$('#nt').value.trim(), encLitige:false});
+        await DB.set('livraisons', id, {encValide:true, encValideLe:Date.now(), encRecu:mt, encMode:$('#md').value, encRef:$('#ref').value.trim(), encNote:$('#nt').value.trim(), encLitige:false});
         fermer(); toast(mt < du(c) ? `✅ Validé. Attention : ${F(du(c) - mt)} de moins que prévu.` : '✅ Encaissement validé'); }; }); },
   async encNon(id){ await DB.set('livraisons', id, {encLitige:true, encLitigeLe:Date.now()}); toast('Marqué « pas encore reçu » : la commande reste à valider'); },
   cPer(k){ const f = S.cF, n = Date.now(); f.au = iso(n); f.du = k === 'j' ? iso(n) : k === '7' ? iso(n - 6 * 864e5) : k === 'm' ? iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)) : '2020-01-01';
@@ -1468,7 +1503,9 @@ const ACT = {
   cTri(k){ S.cF.tri = k; VUE.refresh(); },
   cPartager(){ location.href = wa('', S.cTxt || ''); },
   go: r => r === 'client' ? client() : r === 'livreur' ? livreurLogin() : patronLogin(),
-  accueil(){ if(S.role === 'livreur' && S.lv) service(S.lv, false); if(['livreur','patron'].includes(S.role)) setTimeout(fermerSession, S.role === 'livreur' ? 2500 : 0); /* laisse partir la position « hors service » d'abord */ try { sessionStorage.removeItem('pat'); } catch {} abonnerRole(''); accueil(); },
+  /* RETOUR INTÉRIEUR : le patron reste connecté (pas de code à retaper) tant que l'application n'est pas fermée ; le livreur, lui, passe hors service */
+  accueil(){ if(S.role === 'livreur' && S.lv){ service(S.lv, false); setTimeout(fermerSession, 2500); /* laisse partir la position « hors service » d'abord */ } abonnerRole(''); accueil(); },
+  deconnexion(){ try { sessionStorage.removeItem('pat'); } catch {} fermerSession(); abonnerRole(''); accueil(); toast('🔒 Patron déconnecté : le code sera demandé à la prochaine entrée'); },
   sortie(){ ACT.accueil(); },
   tab: k => S.role === 'livreur' ? livreurApp(S.lv, k) : patronApp(k),
   newCmd(){ ls.set('cmd', null); commande(); },
@@ -1523,18 +1560,20 @@ const ACT = {
   async plRep(id){ await DB.set('plaintes', id, {reponse:$('#rep-' + id).value, statut:'encours', reponduLe:Date.now()}); toast('Réponse enregistrée'); },
   async recup(id){ await DB.set('livraisons', id, {statut:'recuperee', recupereeLe:Date.now()}); couperNtfy([canalPatron(), S.lv ? canalLv(S.lv.id) : ''], [id]); toast('Colis récupéré'); },
   livrer(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return;
-    modal(`<h2>Colis livré</h2><form id="fm" class="form">
+    modal(`<h2>✅ Colis livré</h2><form id="fm" class="form">
       ${c.codeExige ? `<label>🔑 Code de réception donné par le receveur<input id="cd" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" required autocomplete="off" class="codeIn"></label>
-        <p class="note">Le receveur n'a pas le code ? Appelez le patron${S.p.tel ? ' (' + esc(S.p.tel) + ')' : ''} : lui seul peut valider sans code.</p>` : ''}
-      <label>Montant réellement encaissé (F CFA)<input id="mt" type="number" min="0" inputmode="numeric" value="${(+c.frais || 0) + (+c.valeur || 0)}"></label>
-      <button class="btn vert plein">Confirmer la livraison</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
+        <p class="note">L'application vérifie le code tout de suite. S'il est bon, le patron et l'expéditeur sont prévenus automatiquement.<br>Le receveur n'a pas le code ? Appelez le patron${S.p.tel ? ' (' + esc(S.p.tel) + ')' : ''} : lui seul peut valider sans code.</p>` : ''}
+      <p class="paye nocash">🚫 Ne prends aucun argent : le receveur paie ${esc(S.p.entreprise)} par Mobile Money.</p>
+      <button class="btn vert plein">Vérifier le code et terminer</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
       $('#fm').onsubmit = async ev => { ev.preventDefault(); const cd = c.codeExige ? $('#cd').value.trim() : '';
         if(c.codeExige && !(await DB.get('codes', id + '_' + cd).catch(() => null))) return toast('❌ Code incorrect : demandez-le au receveur');
-        await DB.set('livraisons', id, {statut:'livree', livreeLe:Date.now(), encaisse:+$('#mt').value || 0, ...(c.codeExige ? {codeSaisi:cd} : {})});
-        ntfy(canalPatron(), '💰 Livraison terminée : argent à encaisser', `${c.code} livré par ${c.livreurNom || ''} : ${F(du(c))} attendus, ${F(+$('#mt').value || 0)} déclarés encaissés. Validez dans la Caisse.`, 4, '#patron');
+        await DB.set('livraisons', id, {statut:'livree', livreeLe:Date.now(), encaisse:0, ...(c.codeExige ? {codeSaisi:cd} : {})});
+        couperTous(id);
+        ntfy(canalPatron(), '✅ Colis livré, code conforme', `${c.code} remis ${net(c.destNom) ? 'à ' + net(c.destNom) : 'au receveur'} par ${c.livreurNom || 'le livreur'}${c.codeExige ? ' (code vérifié)' : ''}. ${du(c) ? F(du(c)) + ' à recevoir par Mobile Money : validez dans la Caisse dès réception.' : 'Rien à encaisser.'}`, 4, '#patron');
         const lien = location.href.split('#')[0] + '#avis-' + id, txt = `Bonjour, votre colis ${c.code} de ${S.p.entreprise} a été livré. Donnez votre avis sur la livraison ici : ${lien}`;
         modal(`<h2>Livraison terminée ✓</h2><p>Envoyez au destinataire le lien pour noter la livraison${c.destNom ? ' (' + esc(c.destNom) + ')' : ''} :</p>
           ${c.destTel ? `<a class="btn vert plein" href="${wa(c.destTel, txt)}">Envoyer par WhatsApp</a>` : '<p class="note">Pas de numéro de destinataire enregistré.</p>'}
+          ${c.clientTel ? `<p>L'expéditeur (${esc(c.clientNom || '')}) est prévenu dans l'application. Prévenez-le aussi par WhatsApp :</p><a class="btn plein" href="${wa(c.clientTel, `Bonjour ${net(c.clientNom)}, votre colis ${c.code} de ${S.p.entreprise} a été remis à ${net(c.destNom) || 'son destinataire'} à ${H(Date.now())}${c.codeExige ? ', avec son code de réception' : ''}. Merci de votre confiance !`)}">💬 Prévenir l'expéditeur</a>` : ''}
           <button class="btn plein" data-a="fermer">Terminer</button>`); }; }); },
   async annulerP(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'patron'}); couperTous(id); toast('Livraison annulée'); },
   suppr(id){ modal(`<h2>Supprimer cette livraison ?</h2><p>Elle disparaîtra aussi des rapports.</p><button class="btn rouge plein" data-a="supprOk" data-id="${id}">Supprimer</button><button class="btn plein" data-a="fermer">Retour</button>`); },
@@ -1544,34 +1583,46 @@ const ACT = {
     await DB.set('params', 'bloques', {tels:n}); toast(t.includes(k) ? 'Numéro débloqué' : '🚫 Numéro bloqué : il ne peut plus commander'); },
   livrePatron(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return;
     modal(`<h2>Valider sans code</h2><p>À utiliser seulement si vous avez vérifié (par appel) que le receveur a bien reçu son colis.</p><form id="fm" class="form">
-      <label>Montant encaissé (F CFA)<input id="mt" type="number" min="0" value="${(+c.frais || 0) + (+c.valeur || 0)}"></label>
+      <p class="note">Le paiement (${F(du(c))}) se valide ensuite dans 💰 Caisse, quand le Mobile Money est arrivé.</p>
       <button class="btn vert plein">Valider la livraison</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
-      $('#fm').onsubmit = async ev => { ev.preventDefault(); await DB.set('livraisons', id, {statut:'livree', livreeLe:Date.now(), encaisse:+$('#mt').value || 0, valideParPatron:true}); fermer(); toast('Livraison validée'); }; }); },
+      $('#fm').onsubmit = async ev => { ev.preventDefault(); await DB.set('livraisons', id, {statut:'livree', livreeLe:Date.now(), encaisse:0, valideParPatron:true}); couperTous(id); fermer(); toast('Livraison validée : le paiement attend dans la Caisse'); }; }); },
   fermer,
   nouvelle(){ modal(`<h2>Nouvelle livraison</h2><form id="fm" class="form">
       <label>Nom du client<input name="nom" required></label><label>Téléphone du client<input name="tel" type="tel" required></label>
       <label>Rechercher le lieu de récupération<input id="pq1" type="search" autocomplete="off"></label><div id="pr1" class="res"></div>
-      <label>Où prendre le colis (repère)<input name="rep" required></label><label>Zone de livraison<select name="zone">${zoneOpts()}</select></label>
+      <label>Où prendre le colis (repère)<input name="rep" required></label>
       <label>Rechercher le lieu de livraison<input id="pq2" type="search" autocomplete="off"></label><div id="pr2" class="res"></div>
       <label>Adresse de livraison<input name="dest" required></label><label>Nom du destinataire<input name="dNom"></label><label>Téléphone du destinataire<input name="dTel" type="tel"></label>
       ${typeColisChamp()}${colisChamp()}${delaiChamp()}
-      <fieldset class="sec s-pay"><legend>💰 Qui paie la livraison ?</legend><div class="choix"><label><input type="radio" name="payeur" value="client" checked>L'expéditeur</label><label><input type="radio" name="payeur" value="dest">Le receveur</label></div></fieldset><label>Montant à encaisser pour le colis<input name="val" type="number" min="0" value="0"></label>
-      <label>Frais de livraison<input name="frais" type="number" min="0"></label>
+      <fieldset class="sec s-pay"><legend>💰 Qui paie la livraison ?</legend><div class="choix"><label><input type="radio" name="payeur" value="client" checked>L'expéditeur</label><label><input type="radio" name="payeur" value="dest">Le receveur</label></div></fieldset><label>Valeur de la marchandise, payée par le receveur (0 si rien)<input name="val" type="number" min="0" value="0"></label>
+      <div id="pPrix" class="prixBloc att">📍 Le prix s'affichera quand le lieu de récupération et le lieu de livraison seront choisis.</div>
+      <div id="pPrixC" hidden><label id="pZone">Zone de livraison (trouvée d'après le lieu, corrigez si besoin)<select name="zone"><option value="">— Choisissez la zone —</option>${zoneOpts()}<option value="__autre">✏️ Autre prix (je l'écris)</option></select></label>
+      <label>Frais de livraison (vous pouvez écrire le prix que vous voulez)<input name="frais" type="number" min="0" inputmode="numeric"></label></div>
       <label>Attribuer à<select name="lv"><option value="">Laisser en attente (les livreurs la verront)</option>${lvOpts()}</select></label>
       <button class="btn jaune plein">Créer</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
       const f = $('#fm'); let dep = null, dst = null, distP = null;
-      const upd = async () => { if(modeKm()){ if(dep && dst){ distP = await distanceKm(dep, dst); f.frais.value = prixKm(distP); } } else f.frais.value = prix(f.zone.value);
-        if(estOfferte(f.tel.value)){ f.frais.value = 0; toast('🎁 Livraison offerte (fidélité)'); } };
-      f.zone.onchange = upd; f.tel.onchange = upd; upd();
+      let manuel = false; f.frais.oninput = () => { manuel = true; aff(); };
+      /* le prix n'existe qu'une fois le départ ET l'arrivée connus */
+      const pret = () => modeKm() ? !!(dep && dst) : !!(f.rep.value.trim() && f.dest.value.trim());
+      const aff = () => { const ok = pret(), v = f.frais.value; $('#pPrixC').hidden = !ok; $('#pZone').hidden = modeKm() || modeFixe(); f.zone.required = ok && !modeKm() && !modeFixe();
+        $('#pPrix').className = 'prixBloc' + (ok && v !== '' ? '' : ' att');
+        $('#pPrix').innerHTML = !ok ? (modeKm() ? "📍 Le prix s'affichera quand les 2 lieux seront trouvés avec la recherche (calcul au kilomètre)." : "📍 Le prix s'affichera quand le lieu de récupération et le lieu de livraison seront remplis.")
+          : v === '' ? (f.zone.value === '__autre' ? '✏️ Écrivez le prix de la livraison ci-dessous.' : '👇 Choisissez la zone de livraison, ou « ✏️ Autre prix » pour écrire le vôtre.') : `<small>Prix de la livraison</small><b>${F(+v)}</b><span>${manuel || f.zone.value === '__autre' ? 'Prix écrit par vous' : modeFixe() ? 'Prix unique' : modeKm() && distP != null ? 'Distance ' + kmT(distP) : f.zone.value ? 'Zone ' + esc(f.zone.value) : ''}</span>`; };
+      const upd = async () => { if(pret() && !manuel){ if(modeFixe()) f.frais.value = +S.p.prixFixe; else if(modeKm()){ distP = await distanceKm(dep, dst); f.frais.value = prixKm(distP); } else if(f.zone.value === '__autre'){ f.frais.value = ''; manuel = true; setTimeout(() => f.frais.focus(), 50); } else f.frais.value = f.zone.value ? prix(f.zone.value) : '';
+          if(estOfferte(f.tel.value) && f.frais.value !== ''){ f.frais.value = 0; toast('🎁 Livraison offerte (fidélité)'); } } aff(); };
+      f.zone.onchange = () => { manuel = false; upd(); };   /* « Autre prix » : le patron écrit le montant */ f.tel.onchange = upd; f.rep.addEventListener('input', upd);
+      f.dest.addEventListener('change', () => { if(!f.zone.value) zoneAuto(f.zone, f.dest.value); upd(); }); f.dest.addEventListener('input', aff); upd();
       chercher($('#pq1'), $('#pr1'), x => { dep = {lat:x.lat, lng:x.lng}; if(!f.rep.value) f.rep.value = x.court; toast('Lieu de récupération placé'); upd(); });
-      chercher($('#pq2'), $('#pr2'), x => { dst = {lat:x.lat, lng:x.lng}; if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse); upd(); toast('Lieu de livraison placé'); });
-      f.onsubmit = async ev => { ev.preventDefault(); const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
+      chercher($('#pq2'), $('#pr2'), x => { dst = {lat:x.lat, lng:x.lng}; if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse + ' ' + x.court); upd(); toast('Lieu de livraison placé'); });
+      f.onsubmit = async ev => { ev.preventDefault(); if(!pret()) return toast(modeKm() ? 'Trouvez les 2 lieux avec la recherche : le prix dépend de la distance' : 'Indiquez le lieu de récupération et le lieu de livraison');
+        if(f.frais.value === '') return toast('Choisissez la zone ou écrivez le prix de la livraison');
+        const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
         const d = Object.fromEntries(new FormData(f)), l = S.livreurs.find(x => x.id === d.lv);
-        const nouvC = {code:codeCmd(), clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true, clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
+        const nouvC = {code:codeCmd(), clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true, clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone === '__autre' ? '' : d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
           colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, creeLe:Date.now(), source:'patron',
           ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})};
         const nid = await DB.add('livraisons', nouvC);
-        const res = resumeCmd({departTxt:d.rep, zone:d.zone, frais:+d.frais || 0, limiteRecup:lim});
+        const res = resumeCmd({departTxt:d.rep, zone:d.zone === '__autre' ? '' : d.zone, frais:+d.frais || 0, limiteRecup:lim});
         if(l) alerteRep(canalLv(l.id), '📋 Le patron vous attribue une course', res, '#livreur', nid); else alerteDemande('🔔 Nouvelle demande de livraison', res, nid);
         const code = codeAleatoire(); await DB.set('codes', nid + '_' + code, {t:Date.now()});
         const msgC = msgReceveur(nouvC, code, lienColisCode(nid, code));
@@ -1607,10 +1658,10 @@ const ACT = {
     await DB.del('livreurs', id); await DB.del('positions', id); fermer(); toast('Livreur supprimé'); },
   async lvToggle(id){ const l = S.livreurs.find(x => x.id === id); await DB.set('livreurs', id, {actif: l.actif === false}); },
   versement(id){ const l = S.livreurs.find(x => x.id === id), s = solde(id);
-    modal(`<h2>Versement de ${esc(l.nom)}</h2><p>Reste à verser : <b>${F(s.reste)}</b></p><form id="fm" class="form">
-      <label>Montant reçu (F CFA)<input id="mt" type="number" min="1" required inputmode="numeric" value="${Math.max(0, Math.round(s.reste))}"></label>
+    modal(`<h2>Payer ${esc(l.nom)}</h2><p>Ses gains non encore payés : <b>${F(s.reste)}</b></p><form id="fm" class="form">
+      <label>Montant payé au livreur (F CFA)<input id="mt" type="number" min="1" required inputmode="numeric" value="${Math.max(0, Math.round(s.reste))}"></label>
       <label>Note (facultatif)<input id="nt"></label><button class="btn jaune plein">Enregistrer</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
-      $('#fm').onsubmit = async ev => { ev.preventDefault(); await DB.add('versements', {livreurId:id, livreurNom:l.nom, montant:+$('#mt').value, note:$('#nt').value, date:Date.now()}); fermer(); toast('Versement enregistré'); }; }); },
+      $('#fm').onsubmit = async ev => { ev.preventDefault(); await DB.add('versements', {livreurId:id, livreurNom:l.nom, montant:+$('#mt').value, note:$('#nt').value, date:Date.now(), sens:'paie'}); fermer(); toast('Paiement du livreur enregistré'); }; }); },
   preset(k){ const n = new Date(); let a, b;
     if(k === 'j'){ a = b = n; } else if(k === 'm'){ a = new Date(n.getFullYear(), n.getMonth(), 1); b = n; } else { a = new Date(n.getFullYear(), n.getMonth() - 1, 1); b = new Date(n.getFullYear(), n.getMonth(), 0); }
     S.rDu = iso(a); S.rAu = iso(b); $('#rDu').value = S.rDu; $('#rAu').value = S.rAu; VUE.refresh(); },
