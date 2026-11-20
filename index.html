@@ -262,7 +262,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '34';
+const VERSION = '35';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -1550,6 +1550,15 @@ async function demarrer(){
     if(x === '#patron'){ patronLogin(); return true; }
     return false; };
   addEventListener('hashchange', lienDirect);
+  /* bouton retour du téléphone : revient à l'onglet d'accueil au lieu de fermer l'application */
+  const garde = () => { try { if(!(history.state && history.state.g)) history.pushState({g:1}, ''); } catch(e) {} };
+  garde(); document.addEventListener('pointerdown', garde, true); document.addEventListener('touchstart', garde, true);
+  addEventListener('popstate', () => {
+    if(!$('#modal').hidden){ fermer(); return garde(); }                                   // une fenêtre ouverte : on la ferme
+    if(S.role === 'patron' && S.tab !== 'dir'){ patronApp('dir'); scrollTo(0, 0); return garde(); }       // patron : retour à « En direct »
+    if(S.role === 'livreur' && S.lv && S.tab !== 'dem'){ livreurApp(S.lv, 'dem'); scrollTo(0, 0); return garde(); }   // livreur : retour à « Demandes »
+    try { history.back(); } catch(e) {}                                                     // page d'accueil : le retour ferme l'application
+  });
   finSplash();
   if(/Android/i.test(navigator.userAgent) && horsChrome() && location.protocol !== 'file:') alerte('info', "ℹ️ Vous êtes dans WhatsApp. Pour le GPS et les alarmes, touchez ⋮ en haut à droite puis « Ouvrir dans Chrome ».", 'gps', true);
   if(lienDirect()) {} else if(sv.r === 'client') client(); else if(sv.r === 'livreur') livreurLogin(); else if(sv.r === 'patron') patronLogin(); else accueil();
