@@ -215,6 +215,19 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;b
 @media (max-width:360px){#btnQuit{font-size:11px;padding:6px 8px;letter-spacing:0}header{gap:6px;padding-inline:10px}}
 #mode{flex:none}
 #btnQuit:active{background:rgba(125,211,252,.25)}
+/* caisse */
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}.scroll table{min-width:100%}
+.cHist td,.cHist th{padding:7px 4px;font-size:13px}
+.etq{display:inline-block;font-size:12px;font-weight:800;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.etq.c{background:#dbeafe;color:#1e40af}.etq.a{background:#ffedd5;color:#9a3412}.etq.r{background:#fee2e2;color:#b91c1c}.etq.v{background:#dcfce7;color:#166534}.etq.x{background:#eceff3;color:#5b6472}
+.kpi.a{background:#fff7ed;border-color:#fdba74}.kpi.a b{color:#c2410c}.kpi.v{background:#f0fdf4;border-color:#86efac}.kpi.v b{color:#15803d}.kpi.c{background:#eff6ff;border-color:#93c5fd}.kpi.c b{color:#1d4ed8}
+.encCard{border-left:6px solid #f97316}.encCard.r{border-left-color:#dc2626;background:#fff8f8}
+.ecart{color:#b91c1c;font-weight:800}
+.filtres{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0}
+.filtres label{margin:0!important;font-size:13px}.filtres .row{grid-column:1/-1;margin:0}
+.rang{font-size:20px}.piv{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}.piv.tot2{background:#151515;color:#fff;border-color:#151515}.piv.tot2 small{color:#bbb}
+.pivG{display:grid;grid-template-columns:repeat(auto-fit,minmax(95px,1fr));gap:6px;margin-top:8px}.pivG div{background:rgba(127,127,127,.08);border-radius:8px;padding:6px 8px}.pivG small{display:block;font-size:11.5px;color:var(--mut)}.pivG b{font-size:15px;white-space:nowrap}.pivG .v b{color:#16a34a}.pivG .a b{color:#ea580c}.tot td{font-weight:800;border-top:2px solid var(--ink)}
+h3.sec{margin-top:22px;padding:8px 12px;border-radius:10px;background:var(--tcl,#f3f4f6);color:var(--tc,inherit)}
 </style>
 </head>
 <body>
@@ -267,7 +280,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '37';
+const VERSION = '38';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -331,6 +344,18 @@ function clientsReguliers(){ const g = {};
     if(c.depart && c.depart.lat != null) x.pts.push(c.depart); if(c.livreurNom) x.lv[c.livreurNom] = (x.lv[c.livreurNom] || 0) + 1; });
   return Object.values(g); }
 // ----- qui paie la livraison -----
+const net = x => String(x == null ? '' : x).replace(/\s+/g, ' ').trim();
+/* message WhatsApp au receveur : clair même si le patron l'envoie sans le relire */
+function msgReceveur(c, code, lien){ const a = aPayer(c), dest = net(c.destNom), exp = net(c.clientNom), ent = net(S.p.entreprise), colis = net(c.colis);
+  const de = /^[aeiouyhéèêàâîô]/i.test(ent) ? "d'" + ent : 'de ' + ent;
+  const L = [`Bonjour${dest ? ' ' + dest : ''},`, '', `${exp || 'Un expéditeur'} vous envoie un colis${colis ? ' (' + colis + ')' : ''} avec ${ent}${c.code ? ', commande ' + c.code : ''}.`, ''];
+  if(a.dest > 0){ const det = c.payeur === 'dest' && +c.valeur > 0 ? ` (livraison ${F(c.frais)} + marchandise ${F(c.valeur)})` : c.payeur === 'dest' ? ' (frais de livraison)' : ' (marchandise)';
+    L.push(`💰 À payer à la réception : ${F(a.dest)}${det}, à l'entreprise ${ent}.`);
+    L.push(S.p.momo ? `Payez par Mobile Money au ${net(S.p.momo)} (${ent}), motif ${c.code || ''}, ou en espèces au livreur, qui encaisse pour le compte ${de}.` : `Vous pouvez payer en espèces au livreur, qui encaisse pour le compte ${de}.`); }
+  else L.push("💰 Rien à payer pour vous : la livraison est réglée par l'expéditeur.");
+  if(code){ L.push('', `🔑 Votre code de réception : ${code}`, `Ne le donnez au livreur qu'au moment où vous recevez le colis, après l'avoir vérifié. Ce code prouve que vous l'avez bien reçu : sans lui, le livreur ne peut pas terminer la livraison.`); }
+  L.push('', `📍 Suivre le colis : ${lien}`); if(S.p.tel) L.push(`Une question ? ${ent} : ${net(S.p.tel)}`);
+  return L.join('\n'); }
 const aPayer = c => { const fr = +c.frais || 0, v = +c.valeur || 0; return c.payeur === 'dest' ? {exp:0, dest:fr + v} : {exp:fr, dest:v}; };
 function payeHtml(c){ const a = aPayer(c), parts = [a.exp ? `chez l'expéditeur <b>${F(a.exp)}</b>` : '', a.dest ? `chez le receveur <b>${F(a.dest)}</b>` : ''].filter(Boolean);
   return `<p class="paye">💰 ${c.payeur === 'dest' ? '<b>Le receveur paie</b> la livraison' : "<b>L'expéditeur paie</b> la livraison"} — à encaisser : ${parts.join(' · ') || 'rien'}</p>`; }
@@ -394,6 +419,13 @@ const pill = s => `<span class="pill ${s}">${STATUTS[s]}</span>`;
 const libelle = c => c.statut === 'acceptee' && c.demarreLe ? 'Livreur en route' : c.statut === 'recuperee' && c.demarreLivLe ? 'En route vers le destinataire' : STATUTS[c.statut];
 const pillC = c => `<span class="pill ${c.statut}">${libelle(c)}</span>`;
 // ----- commission du livreur : % des frais + montant fixe par course -----
+/* ----- caisse : chaque commande suivie jusqu'à l'argent réellement reçu par le patron ----- */
+const du = c => (+c.frais || 0) + (+c.valeur || 0);   // ce que l'entreprise doit percevoir pour cette commande
+function etatCaisse(c){ if(c.statut === 'annulee') return 'annulee'; if(c.statut !== 'livree') return 'cours';
+  if(c.encValide) return 'valide'; if((c.livreeLe || 0) < (+S.p.caisseDepuis || 0)) return 'ancien'; return c.encLitige ? 'nonrecu' : 'avalider'; }
+const ETATS = {cours:['📦 En cours', 'c'], avalider:['⏳ À valider', 'a'], nonrecu:['⚠️ Pas reçu', 'r'], valide:['✅ Reçu', 'v'], ancien:['Avant le suivi', 'x'], annulee:['Annulée', 'x']};
+const etq = e => `<span class="etq ${ETATS[e][1]}">${ETATS[e][0]}</span>`;
+const aValider = () => S.livraisons.filter(c => ['avalider','nonrecu'].includes(etatCaisse(c)));
 const commission = c => (+c.frais || 0) * (+S.p.part || 0) / 100 + (+S.p.fixe || 0);
 const gain = c => commission(c) ? `<p class="gain">Votre gain sur cette course : <b>${F(commission(c))}</b></p>` : '';
 // ----- estimation du temps d'arrivée des livreurs -----
@@ -461,19 +493,30 @@ document.addEventListener('visibilitychange', () => { if(document.visibilityStat
 // ----- alertes ntfy : font sonner les téléphones même verrouillés -----
 const canalLv = id => (S.p.ntfyCanal || '') + '-l-' + String(id).replace(/[^A-Za-z0-9]/g, '').slice(-12).toLowerCase();   // fin de l'identifiant : unique pour chaque livreur
 const canalPatron = () => (S.p.ntfyCanal || '') + '-patron';
-function ntfy(canal, titre, texte, prio, lien, seq){ if(!S.p.ntfyActif || !S.p.ntfyCanal || !canal) return;
+function ntfy(canal, titre, texte, prio, lien, seq, delai){ if(!S.p.ntfyActif || !S.p.ntfyCanal || !canal) return;
   const lvC = S.livreurs.find(l => canal === canalLv(l.id)); if(lvC && lvC.ntfyOn === false) return;   // décoché par le patron
   fetch(S.p.ntfyServeur || 'https://ntfy.sh', {method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(Object.assign({topic:canal, title:titre, message:texte, priority:prio || 5, click:lienApp() + (lien || '')}, seq ? {sequence_id:seq} : {}))}).catch(() => {}); }
+    body:JSON.stringify(Object.assign({topic:canal, title:titre, message:texte, priority:prio || 5, click:lienApp() + (lien || '')}, seq ? {sequence_id:seq} : {}, delai ? {delay:delai} : {}))}).catch(() => {}); }
 /* chaque course a son numéro de notification : on peut ensuite l'effacer à distance, ce qui arrête la sonnerie */
 const seqC = id => 'c' + String(id).replace(/[^A-Za-z0-9]/g, '').slice(0, 40);
+/* sonnerie « comme un appel » : une alerte tout de suite, puis une par minute, programmées chez ntfy.
+   Dès que quelqu'un réagit, l'application annule celles qui ne sont pas encore parties : la sonnerie s'arrête. */
+const NB_REP = 6;
+function alerteRep(canal, titre, texte, lien, id){ ntfy(canal, titre, texte, 5, lien, seqC(id));
+  for(let k = 1; k <= NB_REP; k++) ntfy(canal, '🔁 ' + titre, texte + ` (rappel ${k}/${NB_REP})`, 5, lien, seqC(id) + 'r' + k, (k * 60) + 's'); }
+/* nouvelle demande : chaque livreur actif sur son canal personnel + le patron, pour que chacun arrête SA sonnerie */
+const canauxDemande = () => S.livreurs.filter(l => l.actif !== false).map(l => canalLv(l.id)).concat([canalPatron()]);
+function alerteDemande(titre, texte, id){ canauxDemande().forEach(k => alerteRep(k, titre, texte, k === canalPatron() ? '#patron' : '#livreur', id)); }
+const couperTous = id => couperNtfy([S.p.ntfyCanal].concat(canauxDemande()), [id]);
 function couperNtfy(canaux, ids){ if(!S.p.ntfyCanal) return; const srv = (S.p.ntfyServeur || 'https://ntfy.sh').replace(/\/$/, '');
-  canaux.filter(Boolean).forEach(k => ids.forEach(id => { try { fetch(srv + '/' + encodeURIComponent(k) + '/' + seqC(id) + '/clear', {method:'PUT'}).catch(() => {}); } catch(e) {} })); }
-function mesCanaux(){ if(S.role === 'patron') return [S.p.ntfyCanal, canalPatron()];
-  if(S.role === 'livreur' && S.lv) return [S.p.ntfyCanal, canalLv(S.lv.id)]; return []; }
+  canaux.filter(Boolean).forEach(k => ids.forEach(id => { const seqs = [seqC(id)]; for(let r = 1; r <= NB_REP; r++) seqs.push(seqC(id) + 'r' + r);
+    seqs.forEach(q => { const u = srv + '/' + encodeURIComponent(k) + '/' + q;
+      try { fetch(u, {method:'DELETE'}).catch(() => { fetch(u + '/clear', {method:'PUT'}).catch(() => {}); }); } catch(e) {} }); })); }
+function mesCanaux(){ if(S.role === 'patron') return [canalPatron()];   /* seulement le canal personnel : les autres continuent d'être prévenus */
+  if(S.role === 'livreur' && S.lv) return [canalLv(S.lv.id)]; return []; }
 /* « J'ai compris » : arrête aussi la sonnerie ntfy de ce téléphone pour toutes les courses en cours */
-function couperMesSonneries(){ const lim = Date.now() - 2 * 86400000;
-  const ids = S.livraisons.filter(c => (c.creeLe || 0) > lim || ['attente','acceptee','recuperee'].includes(c.statut)).map(c => c.id).slice(-60);
+function couperMesSonneries(){ const lim = Date.now() - 3 * 3600000;
+  const ids = S.livraisons.filter(c => (c.creeLe || 0) > lim || (c.accepteeLe || 0) > lim).map(c => c.id).slice(-15);
   couperNtfy(mesCanaux(), ids); }
 const resumeCmd = c => `${c.departTxt || ''} → ${c.zone || ''} · ${F(c.frais)}${c.limiteRecup ? ' · avant ' + H(c.limiteRecup) : ''}`;
 const PRES = {};   // depuis quand un livreur stationne chez un client régulier sans course
@@ -505,12 +548,14 @@ function surveiller(){ rappels(); const vu = ls.get('alarmes', {}); let msg = nu
   const att = S.livraisons.filter(c => c.statut === 'attente');
   if(S.role === 'livreur' && S.lv && S.svc) att.forEach(c => { const e = estimer(S.lv.id, S.moi, pointRecup(c));
     if(!e || e.min <= resteMin(c)) dire('n' + c.id, '🔔 Nouvelle demande de livraison', `${c.departTxt} → ${c.zone}${e ? ` · vous y êtes en ≈ ${e.min} min` : ''}${c.limiteRecup ? ` · à récupérer avant ${H(c.limiteRecup)}` : ''}${e && e.trajet ? ' · sur votre trajet' : ''} · ${c.payeur === 'dest' ? 'payée par le receveur' : "payée par l'expéditeur"}`); });
-  if(S.role === 'patron'){ att.forEach(c => { dire('n' + c.id, '🔔 Nouvelle demande', `${c.code} : ${c.departTxt} → ${c.zone}`);
+  if(S.role === 'patron'){ att.forEach(c => { dire('n' + c.id, '🔔 Nouvelle demande', `${c.code} : ${c.departTxt} → ${c.zone} · ${F(du(c))} à percevoir (voir Caisse)`);
       if(pointRecup(c) && S.ok.positions && !candidats(c).some(x => x.ok)) dire('x' + c.id, '⚠️ Aucun livreur à temps', `Aucun livreur en service ne peut arriver avant ${H(c.limiteRecup)} pour ${c.code} (${c.departTxt}). Appelez un livreur ou le client.`); });
     const jr = iso(Date.now());
     presencesSuspectes().forEach(({p, cl, k}) => { const cle = 'sus' + k + jr; if(!vu[cle + 'db']){ vu[cle + 'db'] = 1;
         DB.add('alertes', {type:'presence', livreurId:p.id, livreurNom:p.nom, clientNom:cl.nom, clientTel:cl.tel, t:Date.now()}); }
       dire(cle, '🕵️ Présence suspecte', `${p.nom} est resté plus de 5 min chez ${cl.nom} (client régulier) sans course E-Courses en cours.`); });
+    S.livraisons.filter(c => etatCaisse(c) === 'avalider' && Date.now() - (c.livreeLe || 0) < 864e5).forEach(c => dire('enc' + c.id, '💰 Livraison terminée : argent à encaisser',
+      `${c.code} livré par ${c.livreurNom || 'le livreur'} : ${F(du(c))} attendus (déclaré encaissé : ${F(c.encaisse)}). Validez dans 💰 Caisse dès que vous avez reçu l'argent.`));
     S.plaintes.filter(x => x.statut === 'ouverte').forEach(x => dire('p' + x.id, '📣 Nouvelle réclamation', `${x.code} — ${x.motif} (${x.qui === 'dest' ? 'destinataire' : 'client'})`)); }
   // client : chaque étape de sa commande lui est annoncée
   if(S.role === 'client'){ const c = S.livraisons.find(x => x.id === ls.get('cmd', null));
@@ -974,8 +1019,8 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       $('#fid').innerHTML = off ? '🎁 <b>Cette livraison vous est offerte</b> grâce à votre fidélité !' : rf != null && telCle(f.tel.value).length >= 8 ? `🎁 Encore ${rf} livraison(s) avec E-Courses et la suivante est offerte.` : '';
       const dest = f.querySelector('[name=payeur]:checked').value === 'dest', v = +f.val.value || 0, frs = fr || 0;
       f.dTel.required = dest;
-      $('#payInfo').textContent = dest ? `Le receveur remettra ${F(frs + v)} au livreur à la réception. Son téléphone est obligatoire : il sera prévenu par WhatsApp.`
-        : `Vous remettrez ${F(frs)} au livreur quand il prendra le colis.${v ? ` Le receveur paiera ${F(v)} pour le colis.` : ''}`; };
+      $('#payInfo').textContent = dest ? `Le receveur paiera ${F(frs + v)} à ${S.p.entreprise} à la réception (en espèces au livreur ou par Mobile Money). Son téléphone est obligatoire : il sera prévenu par WhatsApp.`
+        : `Vous paierez ${F(frs)} à ${S.p.entreprise} quand le livreur prendra le colis (en espèces au livreur ou par Mobile Money).${v ? ` Le receveur paiera ${F(v)} pour le colis.` : ''}`; };
     f.zone.onchange = upd; f.val.oninput = upd; f.tel.onchange = upd; f.querySelectorAll('[name=payeur]').forEach(r => r.onchange = upd); upd(); $('#bGps').click();
     f.onsubmit = async ev => { ev.preventDefault(); if(!pos) return toast('Indiquez où prendre le colis : bouton GPS ou touchez la carte');
       const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
@@ -987,7 +1032,7 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       const id = await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
         destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc != null ? fraisCalc : prix(d.zone), distanceKm:distCalc, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
       const code = codeAleatoire(); await DB.set('codes', id + '_' + code, {t:Date.now()}); ls.set('code_' + id, code);
-      ntfy(S.p.ntfyCanal, '🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc != null ? fraisCalc : prix(d.zone), limiteRecup:lim}), 5, '#livreur', seqC(id));
+      alerteDemande('🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc != null ? fraisCalc : prix(d.zone), limiteRecup:lim}), id);
       ls.set('cmd', id); toast('✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }}); }
 const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexOf(c.statut); if(i < 0) return ''; if(i >= 2 || (i === 1 && c.demarreLe)) i++;
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
@@ -1004,7 +1049,7 @@ function suivi(id){ let w = 0; abonnerRole('client'); suivreColis(id);
       if(kc !== this.kc){ this.kc = kc;
         $('#code').innerHTML = code && !['livree','annulee'].includes(c.statut) ? `<div class="card c-code"><h3>🔑 Code de réception : <span class="codeBig">${code}</span></h3>
           <p class="note">Le livreur ne peut terminer la livraison qu'avec ce code. Envoyez-le au receveur : il le donnera au livreur <b>seulement quand il aura le colis en main</b>.</p>
-          ${c.destTel ? `<a class="btn s vert" href="${wa(c.destTel, `Bonjour${c.destNom ? ' ' + c.destNom : ''}, un colis vous est envoyé avec ${S.p.entreprise} (commande ${c.code}). Votre code de réception est ${code} : donnez-le au livreur seulement à la remise du colis. Suivi : ${lienColisCode(id, code)}`)}">📲 Envoyer le code au receveur</a>` : '<p class="note">Si c\'est vous qui recevez le colis, donnez ce code au livreur à la remise.</p>'}</div>` : ''; }
+          ${c.destTel ? `<a class="btn s vert" href="${wa(c.destTel, msgReceveur(c, code, lienColisCode(id, code)))}">📲 Envoyer le code au receveur</a>` : '<p class="note">Si c\'est vous qui recevez le colis, donnez ce code au livreur à la remise.</p>'}</div>` : ''; }
       const lv = c.livreurId && S.positions.find(x => x.id === c.livreurId), d = km(lv, c.clientPos || c.depart);
       const nb = c.statut === 'attente' ? candidats(c).filter(x => x.ok).length : 0;
       if(c.statut === 'attente' && Date.now() - c.creeLe > 5 * 60000 && !ls.get('ntfy5' + id, 0)){ ls.set('ntfy5' + id, 1); ntfy(canalPatron(), '⚠️ Aucun livreur depuis 5 min', c.code + ' : ' + resumeCmd(c), 5, '#patron', seqC(id)); }
@@ -1047,7 +1092,7 @@ function avisDest(id){ S.role = 'dest'; S.destId = id; abonnerRole('dest');
     $('#lst').innerHTML = `<p class="code">Colis ${esc(c.code)} envoyé par ${esc(c.clientNom)}</p><h2>${libelle(c)}</h2>${etapes(c)}
       ${code && !['livree','annulee'].includes(c.statut) ? `<div class="card c-code"><h3>🔑 Votre code de réception : <span class="codeBig">${code}</span></h3><p class="note">Donnez ce code au livreur <b>seulement quand vous avez le colis en main</b>. Sans lui, la livraison ne peut pas être validée.</p></div>` : ''}
       <div class="card"><p><b>Colis :</b> ${esc(c.colis || '')}</p>${consignesHtml(c)}
-      <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> au livreur à la réception${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
+      <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> à ${esc(S.p.entreprise)} à la réception (en espèces au livreur ou par Mobile Money)${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
       ${momoHtml(c)}${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Livreur :</b> ${esc(c.livreurNom)}</p></div>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
       ${c.livreurId ? `<div class="card c-msg"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'dest') || '<p class="note">Aucun message pour l\'instant.</p>'}
         ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'dest', MSG_DEST, 'livreur')}</div>` : ''}
@@ -1163,8 +1208,9 @@ function carteLivraison(c, admin){ const fin = ['livree','annulee'].includes(c.s
     ${admin && fin ? `<button class="lien note" data-a="suppr" data-id="${c.id}">Supprimer</button>` : ''}</div>`; }
 function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRole('patron');
   if(!S.p.ntfyCanal && DB) DB.set('params', 'general', {ntfyCanal:'ecourses-' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4)}); S.tab = tab; ls.set('role', {r:'patron'});
+  if(!S.p.caisseDepuis && S.ok.params && DB) DB.set('params', 'general', {caisseDepuis: Date.now()});   /* début du suivi des encaissements */
   const nbP = S.plaintes.filter(x => x.statut !== 'resolue').length;
-  const T = tabs([['dir','📡 En direct'],['liv','📦 Livraisons'],['lvr','🛵 Livreurs'],['pla','⭐ Avis & plaintes' + (nbP ? ' (' + nbP + ')' : '')],['cai','💰 Caisse'],['rap','📊 Rapports'],['reg','⚙️ Réglages']], tab);
+  const T = tabs([['dir','📡 En direct'],['liv','📦 Livraisons'],['lvr','🛵 Livreurs'],['pla','⭐ Avis & plaintes' + (nbP ? ' (' + nbP + ')' : '')],['cai','💰 Caisse' + (aValider().length ? ' (' + aValider().length + ')' : '')],['rap','📊 Rapports'],['reg','⚙️ Réglages']], tab);
   const V = {
   dir: {h:'<div id="m4" class="map pleine"></div><div class="pad"><div class="kpis" id="k"></div><div id="lst"></div></div>',
     init(){ this.m = carte('m4'); },
@@ -1211,13 +1257,60 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
         ${res.length ? `<details><summary>${res.length} réclamation(s) résolue(s)</summary>${res.map(carteP).join('')}</details>` : ''}
         <h3>Notes des livreurs</h3>${notes.length ? `<table><tr><th>Livreur</th><th>Note</th><th class="n">Avis</th></tr>${notes.map(x => `<tr><td>${esc(x.l.nom)}</td><td><span class="etoiles">${etoiles(x.mo.m)}</span> ${x.mo.m.toFixed(1)}</td><td class="n">${x.mo.n}</td></tr>`).join('')}</table>` : '<p class="note">Pas encore d\'avis.</p>'}
         <h3>Derniers commentaires</h3>${coms.map(([qui, a, c]) => `<div class="card"><span class="etoiles">${etoiles(a.note)}</span> <span class="note">${qui} · ${esc(c.code)} · ${esc(c.livreurNom || '')}</span><p>${esc(a.txt)}</p></div>`).join('') || '<p class="note">Aucun.</p>'}`; }},
-  cai: {h:'<div class="pad"><p class="note">Ce que chaque livreur doit remettre : encaissé − sa commission − versements déjà faits.</p><div id="lst"></div></div>',
-    refresh(){ const vs = S.versements.slice().sort((a,b) => b.date - a.date).slice(0, 30);
-      $('#lst').innerHTML = S.livreurs.map(l => { const s = solde(l.id);
-        return `<div class="card"><div class="row sb"><b>${esc(l.nom)}</b><b class="gros">${F(s.reste)}</b></div>
-          <p class="note">Encaissé ${F(s.enc)}${s.part ? ' · commission ' + F(s.part) : ''} · versé ${F(s.vers)}</p>
-          <button class="btn s jaune" data-a="versement" data-id="${l.id}">Enregistrer un versement</button></div>`; }).join('') || '<p class="vide">Aucun livreur.</p>';
-      $('#lst').innerHTML += `<h3>Derniers versements</h3>${vs.length ? `<table><tr><th>Date</th><th>Livreur</th><th class="n">Montant</th></tr>${vs.map(v => `<tr><td>${D(v.date)}</td><td>${esc(v.livreurNom)}${v.note ? '<br><span class="note">' + esc(v.note) + '</span>' : ''}</td><td class="n">${F(v.montant)}</td></tr>`).join('')}</table>` : '<p class="note">Aucun.</p>'}`; }},
+  cai: {h:`<div class="pad"><div id="cK"></div><div id="cVal"></div><div id="cCours"></div>
+      <h3 class="sec">🔎 Historique et filtres</h3>
+      <div class="filtres"><div class="row"><button class="btn s" data-a="cPer" data-id="j">Aujourd'hui</button><button class="btn s" data-a="cPer" data-id="7">7 jours</button><button class="btn s" data-a="cPer" data-id="m">Ce mois</button><button class="btn s" data-a="cPer" data-id="t">Tout</button></div>
+        <label>Du<input id="cDu" type="date"></label><label>Au<input id="cAu" type="date"></label>
+        <label>Livreur<select id="cLv"><option value="">Tous</option>${S.livreurs.map(l => `<option value="${l.id}">${esc(l.nom)}</option>`).join('')}</select></label>
+        <label>État<select id="cEt"><option value="">Tous</option>${Object.keys(ETATS).map(k => `<option value="${k}">${ETATS[k][0]}</option>`).join('')}</select></label></div>
+      <p class="note">↔️ Faites glisser le tableau sur le côté pour voir toutes les colonnes.</p><div id="cHist"></div><div id="cPiv"></div><div id="cInv"></div><div id="cVers"></div></div>`,
+    init(){ const f = S.cF = S.cF || {du:iso(Date.now() - 29 * 864e5), au:iso(Date.now()), lv:'', et:'', tri:'n'};
+      $('#cDu').value = f.du; $('#cAu').value = f.au; $('#cLv').value = f.lv; $('#cEt').value = f.et;
+      $('#cDu').onchange = $('#cAu').onchange = $('#cLv').onchange = $('#cEt').onchange = () => { f.du = $('#cDu').value; f.au = $('#cAu').value; f.lv = $('#cLv').value; f.et = $('#cEt').value; VUE.refresh(); }; },
+    refresh(){ const f = S.cF, L = S.livraisons, now = Date.now(), t0 = jour(now), m0 = +new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const val = aValider().sort((a,b) => (a.livreeLe || 0) - (b.livreeLe || 0)), cours = L.filter(c => etatCaisse(c) === 'cours').sort((a,b) => b.creeLe - a.creeLe);
+      const recuLe = (a, b) => sum(L.filter(c => c.encValide && c.encValideLe >= a && c.encValideLe < b), c => c.encRecu);
+      $('#cK').innerHTML = `<div class="kpis"><div class="kpi a"><small>⏳ À valider (${val.length})</small><b>${F(sum(val, du))}</b></div><div class="kpi c"><small>📦 En cours (${cours.length})</small><b>${F(sum(cours, du))}</b></div>
+        <div class="kpi v"><small>✅ Reçu aujourd'hui</small><b>${F(recuLe(t0, t0 + 864e5))}</b></div><div class="kpi fort"><small>Reçu ce mois</small><b>${F(recuLe(m0, now + 1))}</b></div></div>`;
+      $('#cVal').innerHTML = `<h3 class="sec">⏳ Livrées : argent à valider</h3><p class="note">Validez seulement quand vous avez <b>vraiment reçu l'argent</b> (espèces du livreur ou Mobile Money). Tant que ce n'est pas fait, la commande reste ici.</p>`
+        + (val.map(c => { const e = etatCaisse(c), ec = (+c.encaisse || 0) !== du(c);
+          return `<div class="card encCard ${e === 'nonrecu' ? 'r' : ''}"><div class="row sb"><b>${esc(c.code)}</b>${etq(e)}</div>
+            <p class="note">Livrée le ${D(c.livreeLe)} à ${H(c.livreeLe)} par <b>${esc(c.livreurNom || '—')}</b> · ${esc(net(c.destNom) || 'receveur')} · ${c.payeur === 'dest' ? 'payé par le receveur' : "frais payés par l'expéditeur"}</p>
+            <div class="row sb"><span>Attendu</span><b class="gros">${F(du(c))}</b></div>
+            <p>Le livreur déclare avoir encaissé <b class="${ec ? 'ecart' : ''}">${F(c.encaisse)}</b>${ec ? ' ⚠️ différent du montant attendu' : ''}</p>
+            <div class="row"><button class="btn vert" data-a="encOk" data-id="${c.id}">✅ Argent reçu</button>${e === 'nonrecu' ? '' : `<button class="btn rouge" data-a="encNon" data-id="${c.id}">⚠️ Pas encore reçu</button>`}${c.livreurTel ? contact(c.livreurTel) : ''}</div></div>`; }).join('') || '<p class="vide">Rien à valider. 👍</p>');
+      $('#cCours').innerHTML = `<h3 class="sec">📦 Commandes en cours (${cours.length})</h3>` + (cours.length ? `<div class="scroll"><table><tr><th>Commande</th><th>Étape</th><th>Livreur</th><th class="n">Attendu</th></tr>${cours.map(c => `<tr><td><b>${esc(c.code)}</b><br><span class="note">${D(c.creeLe)} ${H(c.creeLe)}</span></td><td><span class="pill ${c.statut}">${libelle(c)}</span></td><td>${esc(c.livreurNom || '—')}</td><td class="n"><b>${F(du(c))}</b></td></tr>`).join('')}<tr class="tot"><td colspan="3">Total attendu</td><td class="n">${F(sum(cours, du))}</td></tr></table></div>` : '<p class="note">Aucune.</p>');
+      // historique filtré
+      const a = +new Date(f.du + 'T00:00'), b = +new Date(f.au + 'T00:00') + 864e5, dt = c => c.livreeLe || c.annuleeLe || c.creeLe;
+      const P = L.filter(c => dt(c) >= a && dt(c) < b && (!f.lv || c.livreurId === f.lv)), H2 = P.filter(c => !f.et || etatCaisse(c) === f.et).sort((x,y) => dt(y) - dt(x));
+      $('#cHist').innerHTML = `<p class="note">${H2.length} commande(s) · du ${D(a)} au ${D(b - 1)}${f.lv ? ' · ' + esc((S.livreurs.find(l => l.id === f.lv) || {}).nom || '') : ''}</p>` + (H2.length ? `<div class="scroll"><table class="cHist"><tr><th>Date</th><th>Commande</th><th>Livreur</th><th class="n">Attendu</th><th class="n">Reçu</th><th>État</th></tr>
+        ${H2.slice(0, 200).map(c => `<tr><td>${new Date(dt(c)).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})}<br><span class="note">${H(dt(c))}</span></td><td><b>${esc(c.code)}</b></td><td>${esc(c.livreurNom || '—')}</td><td class="n">${F(du(c))}</td><td class="n">${c.encValide ? F(c.encRecu) : '—'}</td><td>${etq(etatCaisse(c))}${c.encMode ? '<br><span class="note">' + esc(c.encMode) + '</span>' : ''}</td></tr>`).join('')}
+        <tr class="tot"><td colspan="3">Total</td><td class="n">${F(sum(H2.filter(c => c.statut !== 'annulee'), du))}</td><td class="n">${F(sum(H2, c => c.encValide ? c.encRecu : 0))}</td><td></td></tr></table></div>` : '<p class="vide">Aucune commande pour ces filtres.</p>');
+      // tableau croisé par livreur
+      const g = {}; P.filter(c => c.livreurId).forEach(c => { const x = g[c.livreurId] = g[c.livreurId] || {nom:c.livreurNom || '—', n:0, att:0, recu:0, aval:0, com:0, ann:0};
+        if(c.statut === 'annulee'){ x.ann++; return; } if(c.statut !== 'livree') return;
+        x.n++; x.att += du(c); x.com += commission(c); if(c.encValide) x.recu += +c.encRecu || 0; else if(etatCaisse(c) !== 'ancien') x.aval += du(c); });
+      const tri = f.tri || 'n', rows = Object.values(g).sort((p, q) => tri === 'r' ? q.recu - p.recu : tri === 'v' ? q.aval - p.aval : q.n - p.n), med = ['🥇','🥈','🥉'], avecC = S.p.part || S.p.fixe;
+      $('#cPiv').innerHTML = `<h3 class="sec">📊 Tableau croisé par livreur</h3><div class="row"><span class="note">Classer par :</span><button class="btn s ${tri === 'n' ? 'jaune' : ''}" data-a="cTri" data-id="n">Livraisons</button><button class="btn s ${tri === 'r' ? 'jaune' : ''}" data-a="cTri" data-id="r">Argent reçu</button><button class="btn s ${tri === 'v' ? 'jaune' : ''}" data-a="cTri" data-id="v">Reste à valider</button></div>`
+        + (rows.length ? rows.map((x, i) => `<div class="piv"><div class="row sb" style="margin:0"><span><span class="rang">${med[i] || '#' + (i + 1)}</span> <b>${esc(x.nom)}</b></span><span class="badge">${x.n} livraison${x.n > 1 ? 's' : ''}</span></div>
+            <div class="pivG"><div><small>Attendu</small><b>${F(x.att)}</b></div><div class="v"><small>Reçu</small><b>${F(x.recu)}</b></div><div class="${x.aval ? 'a' : ''}"><small>À valider</small><b>${F(x.aval)}</b></div>
+            ${avecC ? `<div><small>Commission</small><b>${F(x.com)}</b></div>` : ''}<div><small>Annulées</small><b>${x.ann}</b></div></div></div>`).join('')
+          + `<div class="piv tot2"><div class="row sb" style="margin:0"><b>Total</b><span class="badge vert">${sum(rows, x => x.n)} livraisons</span></div><div class="pivG"><div><small>Attendu</small><b>${F(sum(rows, x => x.att))}</b></div><div class="v"><small>Reçu</small><b>${F(sum(rows, x => x.recu))}</b></div><div class="${sum(rows, x => x.aval) ? 'a' : ''}"><small>À valider</small><b>${F(sum(rows, x => x.aval))}</b></div></div></div>`
+          : '<p class="note">Aucune course sur cette période.</p>');
+      // inventaire
+      const inv = [['attente','En attente'],['acceptee','Acceptées'],['recuperee','Colis récupérés'],['livree','Livrées'],['annulee','Annulées']].map(([k, t]) => { const xs = P.filter(c => c.statut === k); return [t, xs.length, sum(xs, du)]; });
+      const lv = P.filter(c => c.statut === 'livree'), sous = ['valide','avalider','nonrecu','ancien'].map(k => { const xs = lv.filter(c => etatCaisse(c) === k); return [ETATS[k][0], xs.length, k === 'valide' ? sum(xs, c => c.encRecu) : sum(xs, du)]; });
+      $('#cInv').innerHTML = `<h3 class="sec">🗂️ Inventaire de la période</h3><div class="scroll"><table><tr><th>Commandes</th><th class="n">Nombre</th><th class="n">Montant</th></tr>
+        ${inv.map(([t, n, m]) => `<tr><td>${t}</td><td class="n">${n}</td><td class="n">${F(m)}</td></tr>`).join('')}<tr class="tot"><td>Total commandes</td><td class="n">${P.length}</td><td class="n">${F(sum(P.filter(c => c.statut !== 'annulee'), du))}</td></tr>
+        <tr><td colspan="3"><b>Détail des livrées</b></td></tr>${sous.map(([t, n, m]) => `<tr><td>&nbsp;&nbsp;${t}</td><td class="n">${n}</td><td class="n">${F(m)}</td></tr>`).join('')}</table></div>
+        <button class="btn plein" data-a="cPartager">📤 Envoyer ce bilan par WhatsApp</button>`;
+      S.cTxt = `Caisse ${S.p.entreprise} du ${D(a)} au ${D(b - 1)}\n` + inv.map(([t, n, m]) => `${t} : ${n} (${F(m)})`).join('\n') + '\n\nLivrées :\n' + sous.map(([t, n, m]) => `${t} : ${n} (${F(m)})`).join('\n')
+        + '\n\nPar livreur :\n' + rows.map((x, i) => `${i + 1}. ${x.nom} : ${x.n} livraisons, reçu ${F(x.recu)}, à valider ${F(x.aval)}`).join('\n');
+      // versements groupés (ancien système, facultatif)
+      const vs = S.versements.slice().sort((p, q) => q.date - p.date).slice(0, 30);
+      $('#cVers').innerHTML = `<details class="card"><summary><b>💵 Versements groupés des livreurs (facultatif)</b></summary><p class="note">Si un livreur vous remet l'argent de plusieurs courses d'un coup : encaissé − sa commission − versements déjà faits.</p>
+        ${S.livreurs.map(l => { const so = solde(l.id); return `<div class="row sb"><b>${esc(l.nom)}</b><b>${F(so.reste)}</b></div><p class="note">Encaissé ${F(so.enc)}${so.part ? ' · commission ' + F(so.part) : ''} · versé ${F(so.vers)}</p><button class="btn s jaune" data-a="versement" data-id="${l.id}">Enregistrer un versement</button>`; }).join('<hr>') || '<p class="vide">Aucun livreur.</p>'}
+        <h3>Derniers versements</h3>${vs.length ? `<table><tr><th>Date</th><th>Livreur</th><th class="n">Montant</th></tr>${vs.map(v => `<tr><td>${D(v.date)}</td><td>${esc(v.livreurNom)}${v.note ? '<br><span class="note">' + esc(v.note) + '</span>' : ''}</td><td class="n">${F(v.montant)}</td></tr>`).join('')}</table>` : '<p class="note">Aucun.</p>'}</details>`; }},
   rap: {h:`<div class="pad"><div class="row"><button class="btn s" data-a="preset" data-id="j">Aujourd'hui</button><button class="btn s" data-a="preset" data-id="m">Ce mois</button><button class="btn s" data-a="preset" data-id="p">Mois dernier</button></div>
       <div class="row"><label style="flex:1">Du<input id="rDu" type="date" value="${S.rDu || iso(Date.now())}"></label><label style="flex:1">Au<input id="rAu" type="date" value="${S.rAu || iso(Date.now())}"></label></div><div id="lst"></div></div>`,
     init(){ $('#rDu').onchange = $('#rAu').onchange = () => { S.rDu = $('#rDu').value; S.rAu = $('#rAu').value; VUE.refresh(); }; },
@@ -1353,24 +1446,38 @@ const ACT = {
     await DB.set('livraisons', id, {payeur:qui, payeurLe:Date.now(), payeurPar:'client'});
     { const t = `${c.code} : c'est ${qui === 'dest' ? 'le RECEVEUR' : "l'EXPÉDITEUR"} qui paie la livraison.`; ntfy(canalPatron(), '💰 Paiement choisi par le client', t, 4, '#patron'); if(c.livreurId) ntfy(canalLv(c.livreurId), '💰 Paiement choisi par le client', t, 4, '#livreur'); }
     if(qui === 'dest') ACT.prevenirDest(id);
-    else alarme('✅ Choix envoyé', `${c.livreurNom ? 'Le patron et le livreur ' + c.livreurNom + ' sont prévenus' : 'Le patron est prévenu'} : vous payez ${F(c.frais)} au livreur.`, true); },
+    else alarme('✅ Choix envoyé', `${c.livreurNom ? 'Le patron et le livreur ' + c.livreurNom + ' sont prévenus' : 'Le patron est prévenu'} : vous payez ${F(c.frais)} à ${S.p.entreprise} (en espèces au livreur ou par Mobile Money).`, true); },
   prevenirDest(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return; const a = aPayer({...c, payeur:'dest'});
     const code = ls.get('code_' + id, null);
-    const txt = `Bonjour${c.destNom ? ' ' + c.destNom : ''}, ${c.clientNom} vous envoie un colis (${c.colis || 'colis'}) avec ${S.p.entreprise}. C'est vous qui payez : ${F(a.dest)} à remettre au livreur à la réception.${code ? ` Votre code de réception est ${code} : donnez-le au livreur seulement à la remise du colis.` : ''} Suivez votre colis ici : ${lienColisCode(id, code)}`;
+    const txt = msgReceveur({...c, payeur:'dest'}, code, lienColisCode(id, code));
     modal(`<div class="alarme bon"><h2>✅ Choix envoyé</h2><p>${c.livreurNom ? 'Le patron et le livreur ' + esc(c.livreurNom) + ' sont prévenus' : 'Le patron est prévenu'} : c'est le receveur qui paie ${F(a.dest)}.</p></div>
       <p><b>Prévenez maintenant le receveur</b> (${esc(c.destTel || 'numéro manquant')}) : un message tout prêt s'ouvre dans WhatsApp, il suffit d'appuyer sur Envoyer.</p>
       ${c.destTel ? `<a class="btn vert plein" href="${wa(c.destTel, txt)}">📲 Prévenir le receveur par WhatsApp</a>` : ''}<button class="btn plein" data-a="fermer">Plus tard</button>`); },
+  encOk(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return;
+    modal(`<h2>✅ Argent reçu : ${esc(c.code)}</h2><p>Attendu : <b>${F(du(c))}</b> · déclaré par ${esc(c.livreurNom || 'le livreur')} : <b>${F(c.encaisse)}</b></p>
+      <form id="fm" class="form"><label>Montant que vous avez réellement reçu (F CFA)<input id="mt" type="number" min="0" inputmode="numeric" required value="${+c.encaisse || du(c)}"></label>
+      <label>Reçu comment ?<select id="md"><option>Espèces remises par le livreur</option><option>Mobile Money</option><option>Autre</option></select></label>
+      <label>Note (facultatif)<input id="nt" placeholder="Ex. reçu en 2 fois"></label>
+      <button class="btn vert plein">Valider : l'argent entre dans la caisse</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
+      $('#fm').onsubmit = async ev => { ev.preventDefault(); const mt = +$('#mt').value || 0;
+        await DB.set('livraisons', id, {encValide:true, encValideLe:Date.now(), encRecu:mt, encMode:$('#md').value, encNote:$('#nt').value.trim(), encLitige:false});
+        fermer(); toast(mt < du(c) ? `✅ Validé. Attention : ${F(du(c) - mt)} de moins que prévu.` : '✅ Encaissement validé'); }; }); },
+  async encNon(id){ await DB.set('livraisons', id, {encLitige:true, encLitigeLe:Date.now()}); toast('Marqué « pas encore reçu » : la commande reste à valider'); },
+  cPer(k){ const f = S.cF, n = Date.now(); f.au = iso(n); f.du = k === 'j' ? iso(n) : k === '7' ? iso(n - 6 * 864e5) : k === 'm' ? iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)) : '2020-01-01';
+    $('#cDu').value = f.du; $('#cAu').value = f.au; VUE.refresh(); },
+  cTri(k){ S.cF.tri = k; VUE.refresh(); },
+  cPartager(){ location.href = wa('', S.cTxt || ''); },
   go: r => r === 'client' ? client() : r === 'livreur' ? livreurLogin() : patronLogin(),
   accueil(){ if(S.role === 'livreur' && S.lv) service(S.lv, false); if(['livreur','patron'].includes(S.role)) setTimeout(fermerSession, S.role === 'livreur' ? 2500 : 0); /* laisse partir la position « hors service » d'abord */ try { sessionStorage.removeItem('pat'); } catch {} abonnerRole(''); accueil(); },
   sortie(){ ACT.accueil(); },
   tab: k => S.role === 'livreur' ? livreurApp(S.lv, k) : patronApp(k),
   newCmd(){ ls.set('cmd', null); commande(); },
-  async annulerC(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'client'}); toast('Demande annulée'); },
+  async annulerC(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'client'}); couperTous(id); toast('Demande annulée'); },
   async prendre(id){ const l = S.lv;
     try { await DB.prendre(id, {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), rappels:0, rappelLe:0});
-      couperNtfy([S.p.ntfyCanal, canalPatron()], [id]);   /* course prise : les autres téléphones arrêtent de sonner */
+      couperTous(id);   /* course prise : tous les téléphones arrêtent de sonner */
       toast('Course acceptée'); if(!S.svc) service(l, true); livreurApp(l, 'mes'); } catch(er){ toast(er.message); } },
-  async demarrer(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return;
+  async demarrer(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return; couperNtfy([S.lv ? canalLv(S.lv.id) : '', canalPatron()], [id]);
     await DB.set('livraisons', id, c.statut === 'acceptee' ? {demarreLe:Date.now()} : {demarreLivLe:Date.now()});
     if(!S.svc) service(S.lv, true); RT.k = ''; toast(c.statut === 'acceptee' ? 'Course démarrée : suivez le trajet bleu' : 'En route vers le destinataire'); },
   async attribuer(v){ const [id, lid] = v.split('|'); CH.attrib(id, {value:lid}); },
@@ -1424,11 +1531,12 @@ const ACT = {
       $('#fm').onsubmit = async ev => { ev.preventDefault(); const cd = c.codeExige ? $('#cd').value.trim() : '';
         if(c.codeExige && !(await DB.get('codes', id + '_' + cd).catch(() => null))) return toast('❌ Code incorrect : demandez-le au receveur');
         await DB.set('livraisons', id, {statut:'livree', livreeLe:Date.now(), encaisse:+$('#mt').value || 0, ...(c.codeExige ? {codeSaisi:cd} : {})});
+        ntfy(canalPatron(), '💰 Livraison terminée : argent à encaisser', `${c.code} livré par ${c.livreurNom || ''} : ${F(du(c))} attendus, ${F(+$('#mt').value || 0)} déclarés encaissés. Validez dans la Caisse.`, 4, '#patron');
         const lien = location.href.split('#')[0] + '#avis-' + id, txt = `Bonjour, votre colis ${c.code} de ${S.p.entreprise} a été livré. Donnez votre avis sur la livraison ici : ${lien}`;
         modal(`<h2>Livraison terminée ✓</h2><p>Envoyez au destinataire le lien pour noter la livraison${c.destNom ? ' (' + esc(c.destNom) + ')' : ''} :</p>
           ${c.destTel ? `<a class="btn vert plein" href="${wa(c.destTel, txt)}">Envoyer par WhatsApp</a>` : '<p class="note">Pas de numéro de destinataire enregistré.</p>'}
           <button class="btn plein" data-a="fermer">Terminer</button>`); }; }); },
-  async annulerP(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'patron'}); toast('Livraison annulée'); },
+  async annulerP(id){ await DB.set('livraisons', id, {statut:'annulee', annuleeLe:Date.now(), annulePar:'patron'}); couperTous(id); toast('Livraison annulée'); },
   suppr(id){ modal(`<h2>Supprimer cette livraison ?</h2><p>Elle disparaîtra aussi des rapports.</p><button class="btn rouge plein" data-a="supprOk" data-id="${id}">Supprimer</button><button class="btn plein" data-a="fermer">Retour</button>`); },
   async supprOk(id){ for(const m of S.messages.filter(x => x.livraisonId === id)) if(m._path) await delChemin(m._path);
     await DB.del('livraisons', id); fermer(); toast('Supprimée'); },
@@ -1459,13 +1567,14 @@ const ACT = {
       chercher($('#pq2'), $('#pr2'), x => { dst = {lat:x.lat, lng:x.lng}; if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse); upd(); toast('Lieu de livraison placé'); });
       f.onsubmit = async ev => { ev.preventDefault(); const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
         const d = Object.fromEntries(new FormData(f)), l = S.livreurs.find(x => x.id === d.lv);
-        const nid = await DB.add('livraisons', {code:codeCmd(), clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true, clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
+        const nouvC = {code:codeCmd(), clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true, clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
           colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, creeLe:Date.now(), source:'patron',
-          ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})});
+          ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})};
+        const nid = await DB.add('livraisons', nouvC);
         const res = resumeCmd({departTxt:d.rep, zone:d.zone, frais:+d.frais || 0, limiteRecup:lim});
-        if(l) ntfy(canalLv(l.id), '📋 Le patron vous attribue une course', res, 5, '#livreur', seqC(nid)); else ntfy(S.p.ntfyCanal, '🔔 Nouvelle demande de livraison', res, 5, '#livreur', seqC(nid));
+        if(l) alerteRep(canalLv(l.id), '📋 Le patron vous attribue une course', res, '#livreur', nid); else alerteDemande('🔔 Nouvelle demande de livraison', res, nid);
         const code = codeAleatoire(); await DB.set('codes', nid + '_' + code, {t:Date.now()});
-        const msgC = `Bonjour${d.dNom ? ' ' + d.dNom : ''}, un colis vous est envoyé par ${d.nom} avec ${S.p.entreprise}. Votre code de réception est ${code} : donnez-le au livreur seulement à la remise du colis. Suivi : ${lienColisCode(nid, code)}`;
+        const msgC = msgReceveur(nouvC, code, lienColisCode(nid, code));
         modal(`<h2>Livraison créée ✓</h2><p>Code de réception : <span class="codeBig">${code}</span></p><p class="note">Envoyez-le au receveur. Le livreur ne pourra terminer la livraison qu'avec ce code.</p>
           ${d.dTel ? `<a class="btn vert plein" href="${wa(d.dTel, msgC)}">📲 Envoyer le code au receveur</a>` : '<p class="note">Pas de numéro de receveur : donnez le code à l\'expéditeur par téléphone.</p>'}<button class="btn plein" data-a="fermer">Terminer</button>`);
         toast('Livraison créée'); memoriser(d.rep, dep, ''); memoriser(d.dest, dst, d.zone); }; }); },
@@ -1511,7 +1620,7 @@ const CH = { async ntfyLv(id, el){ await DB.set('livreurs', id, {ntfyOn: el.chec
   async plStatut(id, el){ await DB.set('plaintes', id, {statut:el.value}); toast('Statut mis à jour'); },
   delai(id, el){ const h = el.form.querySelector('.hPrecise'); h.hidden = el.value !== 'h'; if(!h.hidden) h.querySelector('input').focus(); },
   async attrib(id, el){ const l = S.livreurs.find(x => x.id === el.value); if(!l) return; const c = S.livraisons.find(x => x.id === id);
-  ntfy(canalLv(l.id), '📋 Le patron vous attribue une course', c.code + ' : ' + resumeCmd(c), 5, '#livreur', seqC(id));
+  couperTous(id); alerteRep(canalLv(l.id), '📋 Le patron vous attribue une course', c.code + ' : ' + resumeCmd(c), '#livreur', id);
   await DB.set('livraisons', id, {statut: c.statut === 'attente' ? 'acceptee' : c.statut, livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron', demarreLe:null, rappels:0, rappelLe:0}); toast('Attribuée à ' + l.nom); } };
 document.addEventListener('click', ev => { const b = ev.target.closest('[data-a]'); if(!b || !ACT[b.dataset.a]) return; ev.preventDefault(); ACT[b.dataset.a](b.dataset.id, b); });
 document.addEventListener('submit', async ev => { const f = ev.target; if(!f.classList.contains('avisF')) return; ev.preventDefault();
