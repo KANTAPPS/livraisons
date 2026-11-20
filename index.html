@@ -216,6 +216,9 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 6px;b
 #mode{flex:none}
 #btnQuit:active{background:rgba(125,211,252,.25)}
 /* caisse */
+.dateBloc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin:6px 0}.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.row2 input{min-width:0;width:100%;padding-inline:8px}.row2 label{margin:0}
+.dateLue{margin:8px 0 0;color:#166534;font-size:14.5px}.dateLue:empty{display:none}
+.dLivP{background:#ecfeff;border-left:5px solid #0891b2;border-radius:10px;padding:9px 12px;margin:8px 0;color:#155e75}
 .paye.nocash{background:#fef2f2;border-left-color:#dc2626;color:#991b1b}
 .codeRap{background:#eef2ff;border-left:5px solid #4f46e5;border-radius:10px;padding:10px 12px;margin:8px 0;color:#312e81}
 .prixBloc{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border-radius:12px;padding:12px 14px;margin:6px 0 10px;background:#ecfdf5;border:2px solid #22c55e}
@@ -286,7 +289,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '41';
+const VERSION = '43';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -359,6 +362,7 @@ const momoTxt = () => { const l = momoListe(); return l.length > 1 ? l.slice(0, 
 /* message WhatsApp au receveur : clair même si le patron l'envoie sans le relire */
 function msgReceveur(c, code, lien){ const a = aPayer(c), dest = net(c.destNom), exp = net(c.clientNom), ent = net(S.p.entreprise), colis = net(c.colis);
   const L = [`Bonjour${dest ? ' ' + dest : ''},`, '', `${exp || 'Un expéditeur'} vous envoie un colis${colis ? ' (' + colis + ')' : ''} avec ${ent}${c.code ? ', commande ' + c.code : ''}.`, ''];
+  if(c.livrerLe) L.push(`📅 Livraison prévue : ${dateLongue(c.livrerLe)}.`, '');
   if(a.dest > 0){ const det = c.payeur === 'dest' && +c.valeur > 0 ? ` (livraison ${F(c.frais)} + marchandise ${F(c.valeur)})` : c.payeur === 'dest' ? ' (livraison)' : ' (marchandise)';
     L.push(`💰 À payer à la réception : ${F(a.dest)}${det}, à l'entreprise ${ent}.`);
     L.push(`*Vous devez payer dès réception à ${ent}, uniquement par Mobile Money${momoTxt() ? ', à l\'un des numéros ' + momoTxt() : ''}. Tout paiement hors de ces numéros est considéré comme non valide par ${ent} et engage votre entière responsabilité.`); }
@@ -389,7 +393,7 @@ const colisChamp = () => `<fieldset class="sec s-reco"><legend>⚠️ Recommanda
   <div class="choix">${TAGS.map(t => `<label><input type="checkbox" name="tag" value="${esc(t)}">${esc(t)}</label>`).join('')}</div>
   <label>Consignes pour le livreur (facultatif)<textarea name="consignes" rows="2" placeholder="Ex. ne pas pencher le carton, appeler avant d'arriver, 2e étage…"></textarea></label></fieldset>`;
 const lireColis = f => ({tags:new FormData(f).getAll('tag'), consignes:(f.consignes.value || '').trim()});
-const consignesHtml = c => (c.tags && c.tags.length ? `<div class="tags">${c.tags.map(t => `<span class="tag ${t === 'Fragile' ? 'fragile' : ''}">${t === 'Fragile' ? '⚠️ ' : ''}${esc(t)}</span>`).join('')}</div>` : '')
+const consignesHtml = c => livrerHtml(c) + (c.tags && c.tags.length ? `<div class="tags">${c.tags.map(t => `<span class="tag ${t === 'Fragile' ? 'fragile' : ''}">${t === 'Fragile' ? '⚠️ ' : ''}${esc(t)}</span>`).join('')}</div>` : '')
   + (c.consignes ? `<p class="consigne">📝 ${esc(c.consignes)}</p>` : '');
 const LOGO = document.querySelector('#splash img').src;
 const ICONE = 'data:image/jpeg;base64,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';
@@ -472,17 +476,31 @@ const moyenne = id => { const n = notesLv(id); return n.length ? {m:sum(n, a => 
 function mesPlaintes(id){ return S.plaintes.filter(x => x.livraisonId === id).map(x => `<div class="card plainte"><b>Réclamation : ${esc(x.motif)}</b> <span class="pill ${x.statut === 'resolue' ? 'livree' : 'attente'}">${x.statut === 'resolue' ? 'Résolue' : x.statut === 'encours' ? 'En traitement' : 'Reçue'}</span>
   <p class="note">${esc(x.texte)}</p>${x.reponse ? `<p><b>Réponse :</b> ${esc(x.reponse)}</p>` : ''}</div>`).join(''); }
 // ----- délai maximum de récupération -----
-const delaiChamp = () => `<fieldset class="sec s-delai"><legend>⏰ Délai de récupération</legend><label>Le colis doit être récupéré au plus tard
+const delaiChamp = () => `<fieldset class="sec s-delai"><legend>📅 Dates de récupération et de livraison</legend>
+  <label>Le livreur doit prendre le colis au plus tard
   <select name="delai" data-c="delai"><option value="15">dans 15 minutes</option><option value="30" selected>dans 30 minutes</option><option value="45">dans 45 minutes</option>
-  <option value="60">dans 1 heure</option><option value="90">dans 1 h 30</option><option value="120">dans 2 heures</option><option value="h">à une heure précise…</option></select></label>
-  <label class="hPrecise" hidden>Heure limite de récupération<input name="hLim" type="time"></label></fieldset>`;
-function lireDelai(f){ if(f.delai.value !== 'h') return Date.now() + f.delai.value * 60000;
+  <option value="60">dans 1 heure</option><option value="90">dans 1 h 30</option><option value="120">dans 2 heures</option><option value="h">aujourd'hui, à une heure précise…</option><option value="d">📅 à une date et une heure précises…</option></select></label>
+  <label class="hPrecise" hidden>Heure limite de récupération (aujourd'hui)<input name="hLim" type="time"></label>
+  <div class="dRec dateBloc" hidden><div class="row2"><label>📅 Date<input name="dRec" type="date" min="${iso(Date.now())}" data-c="dateTxt"></label><label>🕘 Avant<input name="hRec" type="time" value="12:00" data-c="dateTxt"></label></div><p class="dateLue" data-lu="rec"></p></div>
+  <label>Quand livrer au destinataire ?<select name="quand" data-c="quand"><option value="">Dès que possible, juste après la récupération</option><option value="d">📅 À une date et une heure précises…</option></select></label>
+  <div class="dLiv dateBloc" hidden><div class="row2"><label>📅 Date<input name="dLiv" type="date" min="${iso(Date.now())}" data-c="dateTxt"></label><label>🕘 Vers<input name="hLiv" type="time" value="10:00" data-c="dateTxt"></label></div><p class="dateLue" data-lu="liv"></p>
+  <p class="note">Le livreur garde le colis et le livre à cette date. Le destinataire en est informé.</p></div></fieldset>`;
+/* date + heure lues dans le formulaire ; « jeudi 3 décembre 2026 à 10:00 » */
+const dateHeure = (d, h) => { if(!d) return null; const [y, mo, j] = d.split('-').map(Number), [hh, mm] = (h || '12:00').split(':').map(Number); return +new Date(y, mo - 1, j, hh, mm, 0, 0); };
+const jourLong = t => new Date(t).toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+const dateLongue = t => jourLong(t) + ' à ' + H(t);
+const memeJour = (a, b) => jour(a) === jour(b);
+const quandTxt = t => memeJour(t, Date.now()) ? "aujourd'hui à " + H(t) : memeJour(t, Date.now() + 864e5) ? 'demain à ' + H(t) : dateLongue(t);
+function lireLivrerLe(f){ if(!f.quand || f.quand.value !== 'd') return 0; return dateHeure(f.dLiv.value, f.hLiv.value); }
+const livrerHtml = c => c.livrerLe ? `<p class="dLivP">📅 À livrer au destinataire <b>${quandTxt(c.livrerLe)}</b></p>` : '';
+function lireDelai(f){ if(f.delai.value === 'd'){ const t = dateHeure(f.dRec.value, f.hRec.value); return t && t > Date.now() ? t : null; }
+  if(f.delai.value !== 'h') return Date.now() + f.delai.value * 60000;
   if(!f.hLim.value) return null; const [hh, mm] = f.hLim.value.split(':'), d = new Date(); d.setHours(+hh, +mm, 0, 0);
   if(+d < Date.now()) d.setDate(d.getDate() + 1); return +d; }
 const aRecup = c => c.limiteRecup && ['attente','acceptee'].includes(c.statut);
-const duree = ms => { const m = Math.round(Math.abs(ms) / 60000); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0'); };
+const duree = ms => { const m = Math.round(Math.abs(ms) / 60000); return m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') : Math.floor(m / 1440) + ' j ' + Math.floor(m % 1440 / 60) + ' h'; };
 function chrono(c){ if(!aRecup(c)) return ''; const r = c.limiteRecup - Date.now();
-  return `<p class="chrono ${r <= 0 ? 'retard' : r <= 5 * 60000 ? 'urgent' : ''}">⏰ À récupérer avant <b>${H(c.limiteRecup)}</b> — ${r <= 0 ? 'en retard de ' + duree(r) : 'reste ' + duree(r)}</p>`; }
+  return `<p class="chrono ${r <= 0 ? 'retard' : r <= 5 * 60000 ? 'urgent' : ''}">⏰ À récupérer avant <b>${memeJour(c.limiteRecup, Date.now()) ? H(c.limiteRecup) : quandTxt(c.limiteRecup)}</b> — ${r <= 0 ? 'en retard de ' + duree(r) : 'reste ' + duree(r)}</p>`; }
 let audio = null;
 // sonnerie « comme un appel » : deux tons qui se répètent jusqu'à « J'ai compris » (1 minute maximum)
 function bip(){ try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); const t0 = audio.currentTime;
@@ -531,7 +549,7 @@ function mesCanaux(){ if(S.role === 'patron') return [canalPatron()];   /* seule
 function couperMesSonneries(){ const lim = Date.now() - 3 * 3600000;
   const ids = S.livraisons.filter(c => (c.creeLe || 0) > lim || (c.accepteeLe || 0) > lim).map(c => c.id).slice(-15);
   couperNtfy(mesCanaux(), ids); }
-const resumeCmd = c => `${c.departTxt || ''} → ${c.zone || ''} · ${F(c.frais)}${c.limiteRecup ? ' · avant ' + H(c.limiteRecup) : ''}`;
+const resumeCmd = c => `${c.departTxt || ''} → ${c.zone || ''} · ${F(c.frais)}${c.limiteRecup ? ' · à prendre ' + (memeJour(c.limiteRecup, Date.now()) ? 'avant ' + H(c.limiteRecup) : 'le ' + new Date(c.limiteRecup).toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'}) + ' avant ' + H(c.limiteRecup)) : ''}${c.livrerLe ? ' · à livrer le ' + new Date(c.livrerLe).toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'}) + ' vers ' + H(c.livrerLe) : ''}`;
 const PRES = {};   // depuis quand un livreur stationne chez un client régulier sans course
 function presencesSuspectes(){ const out = [], clients = clientsReguliers().filter(x => x.n >= 2 && x.pts.length);
   S.positions.filter(p => p.enService && p.lat != null && Date.now() - p.t < 10 * 60000).forEach(p => {
@@ -546,7 +564,8 @@ function rappels(){ if(!DB) return; const N = rappelMs(), now = Date.now(), moi 
     if(!['attente','acceptee'].includes(c.statut)) return;
     if(['client','dest'].includes(S.role) && c.id !== (S.role === 'dest' ? S.destId : moi)) return;   // un client ne s'occupe que de sa commande
     if(!['client','dest','livreur','patron'].includes(S.role)) return;
-    const base = c.statut === 'acceptee' ? (c.accepteeLe || c.creeLe) : c.creeLe;
+    if(c.limiteRecup && c.limiteRecup - now > 3 * 3600e3) return;   // course planifiée : les rappels commencent 3 h avant l'heure de récupération
+    const base = Math.max(c.statut === 'acceptee' ? (c.accepteeLe || c.creeLe) : c.creeLe, c.limiteRecup ? c.limiteRecup - 3 * 3600e3 : 0);
     if(now - Math.max(c.rappelLe || 0, base) < N) return;
     const ancien = c.rappels || 0, n = ancien + 1, min = Math.round((now - base) / 60000);
     c.rappelLe = now; c.rappels = n;
@@ -1049,16 +1068,17 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
     f.onsubmit = async ev => { ev.preventDefault();
       if((S.bloques || []).includes(telCle(f.tel.value))) return alarme('Commande impossible', "Ce numéro ne peut plus commander. Contactez l'entreprise" + (S.p.tel ? ' au ' + S.p.tel : '') + '.');
       if(!pos) return toast('Indiquez où prendre le colis : bouton GPS ou touchez la carte');
-      const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
+      const lim = lireDelai(f); if(!lim) return toast("Indiquez quand le livreur doit prendre le colis (date et heure à venir)");
+        const livrerLe = lireLivrerLe(f); if(livrerLe === null || (livrerLe && livrerLe <= lim)) return toast('La date de livraison doit être après la récupération');
       if(!destPos) return alarme('Où livrer ?', 'Cherchez le lieu de livraison ou touchez la carte « Où livrer ». Le prix se calcule à partir du départ et de l\'arrivée.');
       await upd(); if(fraisCalc == null){ $('#prixBloc').scrollIntoView({behavior:'smooth', block:'center'}); return toast('Le prix n\'est pas encore connu : choisissez la zone de livraison'); }
       if(S.livraisons.filter(x => x.statut === 'attente').length >= 3) return alarme('Trop de demandes en attente', 'Vous avez déjà 3 demandes en attente. Patientez ou annulez-en une avant d\'en faire une nouvelle.');
       await upd(); const offerte = estOfferte(f.tel.value);
       const d = Object.fromEntries(new FormData(f)); ls.set('client', {nom:d.nom, tel:d.tel});
       const id = await DB.add('livraisons', {code:codeCmd(), clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
-        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc, distanceKm:modeKm() ? distCalc : null, offerte, limiteRecup:lim, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
+        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc, distanceKm:modeKm() ? distCalc : null, offerte, limiteRecup:lim, livrerLe:livrerLe || 0, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
       const code = codeAleatoire(); await DB.set('codes', id + '_' + code, {t:Date.now()}); ls.set('code_' + id, code);
-      alerteDemande('🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc, limiteRecup:lim}), id);
+      alerteDemande('🔔 Nouvelle demande de livraison', resumeCmd({departTxt:d.rep, zone:d.zone, frais:fraisCalc, limiteRecup:lim, livrerLe}), id);
       ls.set('cmd', id); toast('✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }}); }
 const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexOf(c.statut); if(i < 0) return ''; if(i >= 2 || (i === 1 && c.demarreLe)) i++;
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
@@ -1380,9 +1400,9 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       <div class="choix"><label><input type="checkbox" name="masquer" ${S.p.masquer ? 'checked' : ''}>Cacher les numéros livreur ↔ client en dehors des courses</label></div>
       </fieldset><fieldset class="sec s-pay"><legend>📱 Paiement : uniquement par Mobile Money</legend>
       <p class="note">Les clients paient <b>l'entreprise</b>, jamais le livreur en espèces. Ces numéros apparaissent dans le message WhatsApp du receveur et sur le suivi du colis. Laissez vide un réseau que vous n'utilisez pas.</p>
-      <label>MTN MoMo<input name="momoMtn" type="tel" value="${esc(momoN().mtn)}" placeholder="01 91 02 30 00"></label>
-      <label>Moov Money<input name="momoMoov" type="tel" value="${esc(momoN().moov)}" placeholder="01 xx xx xx xx"></label>
-      <label>Celtiis Cash<input name="momoCeltiis" type="tel" value="${esc(momoN().celtiis)}" placeholder="01 xx xx xx xx"></label></fieldset>
+      <label>MTN MoMo<input name="momoMtn" type="tel" value="${esc(momoN().mtn)}" placeholder="Vide : tapez le numéro MTN"></label>
+      <label>Moov Money<input name="momoMoov" type="tel" value="${esc(momoN().moov)}" placeholder="Vide : tapez le numéro Moov"></label>
+      <label>Celtiis Cash<input name="momoCeltiis" type="tel" value="${esc(momoN().celtiis)}" placeholder="Vide : tapez le numéro Celtiis"></label></fieldset>
       <fieldset class="sec s-reco"><legend>🔔 Rappels et relances</legend>
       <label>Rappeler le livreur (et prévenir le patron) toutes les<select name="rappelMin">${[5,10,15,20].map(n => `<option value="${n}" ${(+S.p.rappelMin || 10) === n ? 'selected' : ''}>${n} minutes</option>`).join('')}</select></label>
       <p class="note">Tant que le colis n'est pas récupéré, le livreur est rappelé (sonnerie + ntfy). Dès le 2ᵉ rappel, le patron est prévenu. Les demandes que personne n'accepte sont aussi rappelées à tous.</p>
@@ -1616,13 +1636,14 @@ const ACT = {
       chercher($('#pq2'), $('#pr2'), x => { dst = {lat:x.lat, lng:x.lng}; if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse + ' ' + x.court); upd(); toast('Lieu de livraison placé'); });
       f.onsubmit = async ev => { ev.preventDefault(); if(!pret()) return toast(modeKm() ? 'Trouvez les 2 lieux avec la recherche : le prix dépend de la distance' : 'Indiquez le lieu de récupération et le lieu de livraison');
         if(f.frais.value === '') return toast('Choisissez la zone ou écrivez le prix de la livraison');
-        const lim = lireDelai(f); if(!lim) return toast("Indiquez l'heure limite de récupération");
+        const lim = lireDelai(f); if(!lim) return toast("Indiquez quand le livreur doit prendre le colis (date et heure à venir)");
+        const livrerLe = lireLivrerLe(f); if(livrerLe === null || (livrerLe && livrerLe <= lim)) return toast('La date de livraison doit être après la récupération');
         const d = Object.fromEntries(new FormData(f)), l = S.livreurs.find(x => x.id === d.lv);
         const nouvC = {code:codeCmd(), clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true, clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone === '__autre' ? '' : d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
-          colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, creeLe:Date.now(), source:'patron',
+          colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, livrerLe:livrerLe || 0, creeLe:Date.now(), source:'patron',
           ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})};
         const nid = await DB.add('livraisons', nouvC);
-        const res = resumeCmd({departTxt:d.rep, zone:d.zone === '__autre' ? '' : d.zone, frais:+d.frais || 0, limiteRecup:lim});
+        const res = resumeCmd({departTxt:d.rep, zone:d.zone === '__autre' ? '' : d.zone, frais:+d.frais || 0, limiteRecup:lim, livrerLe});
         if(l) alerteRep(canalLv(l.id), '📋 Le patron vous attribue une course', res, '#livreur', nid); else alerteDemande('🔔 Nouvelle demande de livraison', res, nid);
         const code = codeAleatoire(); await DB.set('codes', nid + '_' + code, {t:Date.now()});
         const msgC = msgReceveur(nouvC, code, lienColisCode(nid, code));
@@ -1669,7 +1690,13 @@ const ACT = {
 };
 const CH = { async ntfyLv(id, el){ await DB.set('livreurs', id, {ntfyOn: el.checked}); toast(el.checked ? 'Alertes ntfy activées' : 'Alertes ntfy désactivées'); },
   async plStatut(id, el){ await DB.set('plaintes', id, {statut:el.value}); toast('Statut mis à jour'); },
-  delai(id, el){ const h = el.form.querySelector('.hPrecise'); h.hidden = el.value !== 'h'; if(!h.hidden) h.querySelector('input').focus(); },
+  delai(id, el){ const h = el.form.querySelector('.hPrecise'), d = el.form.querySelector('.dRec'); h.hidden = el.value !== 'h'; d.hidden = el.value !== 'd';
+    if(!h.hidden) h.querySelector('input').focus(); if(!d.hidden){ if(!el.form.dRec.value) el.form.dRec.value = iso(Date.now()); CH.dateTxt(id, el); } },
+  quand(id, el){ const d = el.form.querySelector('.dLiv'); d.hidden = el.value !== 'd'; if(!d.hidden){ if(!el.form.dLiv.value) el.form.dLiv.value = iso(Date.now() + 3 * 864e5); CH.dateTxt(id, el); } },
+  dateTxt(id, el){ const f = el.form, r = dateHeure(f.dRec.value, f.hRec.value), l = dateHeure(f.dLiv.value, f.hLiv.value);
+    const pr = f.querySelector('[data-lu=rec]'), pl = f.querySelector('[data-lu=liv]');
+    if(pr) pr.innerHTML = r ? (r < Date.now() ? '⚠️ Cette date est déjà passée.' : '✅ Récupération au plus tard le <b>' + dateLongue(r) + '</b>') : '';
+    if(pl) pl.innerHTML = l ? (l < Date.now() ? '⚠️ Cette date est déjà passée.' : '✅ Livraison prévue le <b>' + dateLongue(l) + '</b>') : ''; },
   async attrib(id, el){ const l = S.livreurs.find(x => x.id === el.value); if(!l) return; const c = S.livraisons.find(x => x.id === id);
   couperTous(id); alerteRep(canalLv(l.id), '📋 Le patron vous attribue une course', c.code + ' : ' + resumeCmd(c), '#livreur', id);
   await DB.set('livraisons', id, {statut: c.statut === 'attente' ? 'acceptee' : c.statut, livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron', demarreLe:null, rappels:0, rappelLe:0}); toast('Attribuée à ' + l.nom); } };

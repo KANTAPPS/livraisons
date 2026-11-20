@@ -1,6 +1,6 @@
 // E-Courses : permet l'installation comme application.
 // Toujours la version en ligne d'abord (les mises à jour arrivent tout de suite), la copie gardée seulement sans connexion.
-const CACHE = 'ecourses-11';
+const CACHE = 'ecourses-13';
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {
