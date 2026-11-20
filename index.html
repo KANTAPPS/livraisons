@@ -146,7 +146,9 @@ details{margin:12px 0}summary{cursor:pointer;font-weight:700;padding:10px 0;min-
 .etoiles{color:#e8a400;letter-spacing:1px;white-space:nowrap}
 .stars{display:flex;flex-direction:row-reverse;justify-content:flex-end;gap:4px}.stars input{position:absolute;opacity:0;width:0}
 .stars label{font-size:40px;line-height:1;color:#ccc;cursor:pointer;margin:0;padding:2px}
-.stars input:checked~label,.stars label:hover,.stars label:hover~label{color:#e8a400}.stars input:focus-visible+label{outline:3px solid var(--j)}
+.stars input:checked~label,.stars label:hover,.stars label:hover~label{color:#e8a400}
+.stars.secoue{animation:secoue .5s}@keyframes secoue{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.avisOk{background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:12px;margin-top:6px}.etoilesOk{font-size:30px;color:#e8a400;margin:0;letter-spacing:2px}.avisAide{margin:2px 0 8px}.stars input:focus-visible+label{outline:3px solid var(--j)}
 .card.plainte{border-left:5px solid var(--r)}
 .chrono{margin:6px 0;padding:6px 10px;border-radius:8px;background:#fff4cc;color:#5a4500;font-size:14px}
 .chrono.urgent{background:#ffd9a8;color:#7a3a00}.chrono.retard{background:var(--r);color:#fff;font-weight:700}
@@ -226,6 +228,7 @@ label.lvOpt,.form label.lvOpt{display:flex!important;flex-direction:row;align-it
 .card.choisi{border:2px solid #0284c7;background:#f0f9ff}.choisiTxt{background:#e0f2fe;color:#075985;border-radius:10px;padding:8px 10px;margin:4px 0 8px}
 .card.refusC{border:2px solid #dc2626;background:#fef2f2}
 /* caisse */
+.quit{border-left:6px solid #16a34a}.quitTxt{white-space:pre-wrap;font-family:inherit;font-size:14px;background:#f8fafc;border:1px dashed #94a3b8;border-radius:10px;padding:10px;margin:0 0 10px}
 .dateBloc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin:6px 0}.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.row2 input{min-width:0;width:100%;padding-inline:8px}.row2 label{margin:0}
 .dateLue{margin:8px 0 0;color:#166534;font-size:14.5px}.dateLue:empty{display:none}
 .dLivP{background:#ecfeff;border-left:5px solid #0891b2;border-radius:10px;padding:9px 12px;margin:8px 0;color:#155e75}
@@ -299,7 +302,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '46';
+const VERSION = '47';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -337,9 +340,10 @@ function reduirePhoto(fichier){ return new Promise((ok, ko) => { const img = new
     URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.72)); };
   img.onerror = () => ko(new Error('Photo illisible')); img.src = url; }); }
 // ----- types de colis (liste écrite par le patron dans Réglages) -----
-const typeColisChamp = () => `<fieldset class="sec s-colis"><legend>📦 Que faut-il livrer ?</legend><div class="choix">${S.p.typesColis.map(t => `<label><input type="radio" name="ctype" value="${esc(t)}">${esc(t)}</label>`).join('')}
-  <label><input type="radio" name="ctype" value="">Autre</label></div><label>Précisez (facultatif)<input name="colis" placeholder="Ex. 2 cartons, gâteau à 3 étages…"></label></fieldset>`;
-const nomColis = f => [new FormData(f).get('ctype'), f.colis.value.trim()].filter(Boolean).join(' — ') || 'Colis';
+const typeColisChamp = () => `<fieldset class="sec s-colis"><legend>📦 Que faut-il livrer ?</legend><p class="note">Cochez tout ce qu'il y a dans la livraison (plusieurs choix possibles).</p><div class="choix">${S.p.typesColis.map(t => `<label><input type="checkbox" name="ctype" value="${esc(t)}">${esc(t)}</label>`).join('')}
+  <label><input type="checkbox" name="ctype" value="Autre">Autre</label></div><label>Précisez (facultatif)<input name="colis" placeholder="Ex. 2 bouteilles de gaz + 1 boîte de médicaments"></label></fieldset>`;
+/* plusieurs types possibles : « Médicaments + Bouteille de gaz — précision » */
+const nomColis = f => { const t = new FormData(f).getAll('ctype').filter(x => x && (x !== 'Autre' || !f.colis.value.trim())); return [t.join(' + '), f.colis.value.trim()].filter(Boolean).join(' — ') || 'Colis'; };
 // ----- prix à la distance réelle (route) entre récupération et livraison -----
 const modeKm = () => S.p.tarifMode === 'km';
 const modeFixe = () => S.p.tarifMode === 'fixe' && +S.p.prixFixe > 0;   /* prix unique écrit par le propriétaire */
@@ -452,6 +456,24 @@ function etatCaisse(c){ if(c.statut === 'annulee') return 'annulee'; if(c.statut
   if(c.encValide) return 'valide'; if((c.livreeLe || 0) < (+S.p.caisseDepuis || 0)) return 'ancien'; return c.encLitige ? 'nonrecu' : 'avalider'; }
 const ETATS = {cours:['📦 En cours', 'c'], avalider:['⏳ À valider', 'a'], nonrecu:['⚠️ Pas reçu', 'r'], valide:['✅ Reçu', 'v'], ancien:['Avant le suivi', 'x'], annulee:['Annulée', 'x']};
 const etq = e => `<span class="etq ${ETATS[e][1]}">${ETATS[e][0]}</span>`;
+/* quittance de livraison envoyée au payeur après validation du Mobile Money */
+function quittance(c, qui){ const a = aPayer(c), ent = net(S.p.entreprise), mt = qui === 'exp' ? a.exp : a.dest, seul = !(a.exp && a.dest);
+  const montant = seul && c.encRecu != null ? +c.encRecu : mt, nom = qui === 'exp' ? net(c.clientNom) : net(c.destNom), tel = qui === 'exp' ? c.clientTel : c.destTel;
+  const det = qui === 'dest' && c.payeur === 'dest' && +c.valeur > 0 ? ` (livraison ${F(c.frais)} + marchandise ${F(c.valeur)})` : qui === 'dest' && c.payeur !== 'dest' ? ' (marchandise)' : ' (livraison)';
+  const t = c.encValideLe || Date.now();
+  return [`🧾 *QUITTANCE DE LIVRAISON — ${ent}*`, `N° Q-${c.code}`, `Date : ${D(t)} à ${H(t)}`, '',
+    `Reçu de : ${nom || (qui === 'exp' ? "l'expéditeur" : 'le receveur')}${tel ? ' (' + net(tel) + ')' : ''}`,
+    `Montant payé : *${F(montant)}*${det}`, `Mode de paiement : ${c.encMode || 'Mobile Money'}${c.encRef ? ' · Réf. ' + c.encRef : ''}`, '',
+    `Objet : livraison de la commande ${c.code}${net(c.colis) ? ' (' + net(c.colis) + ')' : ''}${qui === 'dest' && net(c.clientNom) ? ', envoyée par ' + net(c.clientNom) : ''}${qui === 'exp' && net(c.destNom) ? ', livrée à ' + net(c.destNom) : ''}.`,
+    c.livreeLe ? `Livrée le ${D(c.livreeLe)} à ${H(c.livreeLe)}${c.codeSaisi ? ', avec le code de réception (preuve de livraison)' : ''}.` : '',
+    '', `✅ Paiement reçu et validé par ${ent}. Merci de votre confiance !`, `${ent}${S.p.tel ? ' · ' + net(S.p.tel) : ''}`].filter((x, i, A) => x !== '' || A[i - 1] !== '').join('\n'); }
+function quittanceModal(c){ const a = aPayer(c), qs = [a.dest ? 'dest' : '', a.exp ? 'exp' : ''].filter(Boolean);
+  modal(`<h2>✅ Paiement validé : ${esc(c.code)}</h2><p><b>${F(c.encRecu)}</b> reçus (${esc(c.encMode || 'Mobile Money')}${c.encRef ? ' · réf. ' + esc(c.encRef) : ''}). Le montant est entré dans votre caisse.</p>
+    <h3>🧾 Quittance de livraison</h3><p class="note">Envoyez la quittance à la personne qui a payé : c'est sa preuve de paiement.</p>
+    ${qs.map(q => { const tel = q === 'exp' ? c.clientTel : c.destTel, nom = q === 'exp' ? net(c.clientNom) : net(c.destNom), txt = quittance(c, q);
+      return `<div class="card quit"><pre class="quitTxt">${esc(txt.replace(/\*/g, ''))}</pre>${tel ? `<a class="btn vert plein" href="${wa(tel, txt)}">📲 Envoyer à ${esc(nom || (q === 'exp' ? "l'expéditeur" : 'le receveur'))} par WhatsApp</a>` : '<p class="note">Pas de numéro enregistré pour cette personne.</p>'}
+        <button class="btn s plein" data-a="quitCopier" data-id="${c.id}|${q}">📋 Copier la quittance</button></div>`; }).join('') || '<p class="note">Rien n\'était à payer pour cette commande.</p>'}
+    <button class="btn plein" data-a="fermer">Terminer</button>`); }
 const aValider = () => S.livraisons.filter(c => ['avalider','nonrecu'].includes(etatCaisse(c)));
 const commission = c => (+c.frais || 0) * (+S.p.part || 0) / 100 + (+S.p.fixe || 0);
 const gain = c => commission(c) ? `<p class="gain">Votre gain sur cette course : <b>${F(commission(c))}</b></p>` : '';
@@ -478,8 +500,8 @@ const detourT = d => d < .1 ? 'sans détour' : '+' + kmT(d) + ' de détour';
 const etiquette = e => e.trajet ? `<span class="badge">Sur son trajet (${detourT(e.detour)})</span>` : e.occupe ? '<span class="badge gris">Après sa course</span>' : '<span class="badge vert">Libre</span>';
 // ----- avis et réclamations -----
 const etoiles = n => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
-const formAvis = (id, qui) => `<form class="form avisF" data-id="${id}" data-qui="${qui}"><div class="stars">${[5,4,3,2,1].map(n => `<input type="radio" name="note" value="${n}" id="s${qui}${n}" required><label for="s${qui}${n}" aria-label="${n} étoiles">★</label>`).join('')}</div>
-  <label>Votre commentaire (facultatif)<textarea name="txt" rows="3"></textarea></label><button class="btn jaune plein">Envoyer mon avis</button></form>`;
+const formAvis = (id, qui) => `<form class="form avisF" data-id="${id}" data-qui="${qui}"><div class="stars">${[5,4,3,2,1].map(n => `<input type="radio" name="note" value="${n}" id="s${qui}${n}"><label for="s${qui}${n}" aria-label="${n} étoiles">★</label>`).join('')}</div>
+  <p class="note avisAide">👆 Touchez une étoile pour noter : 1 = mauvais, 5 = excellent.</p><label>Votre commentaire (facultatif)<textarea name="txt" rows="3"></textarea></label><button class="btn jaune plein">Envoyer mon avis</button></form>`;
 const MOTIFS = ['Retard','Colis abîmé','Colis perdu ou incomplet','Comportement du livreur','Problème d\'argent','Autre'];
 const notesLv = id => S.livraisons.filter(c => c.livreurId === id).flatMap(c => [c.avisClient, c.avisDest]).filter(a => a && a.note);
 const moyenne = id => { const n = notesLv(id); return n.length ? {m:sum(n, a => a.note) / n.length, n:n.length} : null; };
@@ -1393,7 +1415,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       const a = +new Date(f.du + 'T00:00'), b = +new Date(f.au + 'T00:00') + 864e5, dt = c => c.livreeLe || c.annuleeLe || c.creeLe;
       const P = L.filter(c => dt(c) >= a && dt(c) < b && (!f.lv || c.livreurId === f.lv)), H2 = P.filter(c => !f.et || etatCaisse(c) === f.et).sort((x,y) => dt(y) - dt(x));
       $('#cHist').innerHTML = `<p class="note">${H2.length} commande(s) · du ${D(a)} au ${D(b - 1)}${f.lv ? ' · ' + esc((S.livreurs.find(l => l.id === f.lv) || {}).nom || '') : ''}</p>` + (H2.length ? `<div class="scroll"><table class="cHist"><tr><th>Date</th><th>Commande</th><th>Livreur</th><th class="n">Attendu</th><th class="n">Reçu</th><th>État</th></tr>
-        ${H2.slice(0, 200).map(c => `<tr><td>${new Date(dt(c)).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})}<br><span class="note">${H(dt(c))}</span></td><td><b>${esc(c.code)}</b></td><td>${esc(c.livreurNom || '—')}</td><td class="n">${F(du(c))}</td><td class="n">${c.encValide ? F(c.encRecu) : '—'}</td><td>${etq(etatCaisse(c))}${c.encMode ? '<br><span class="note">' + esc(c.encMode) + '</span>' : ''}</td></tr>`).join('')}
+        ${H2.slice(0, 200).map(c => `<tr><td>${new Date(dt(c)).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})}<br><span class="note">${H(dt(c))}</span></td><td><b>${esc(c.code)}</b></td><td>${esc(c.livreurNom || '—')}</td><td class="n">${F(du(c))}</td><td class="n">${c.encValide ? F(c.encRecu) : '—'}</td><td>${etq(etatCaisse(c))}${c.encMode ? '<br><span class="note">' + esc(c.encMode) + '</span>' : ''}${c.encValide ? `<br><button class="btn s" data-a="quitRevoir" data-id="${c.id}">🧾 Quittance</button>` : ''}</td></tr>`).join('')}
         <tr class="tot"><td colspan="3">Total</td><td class="n">${F(sum(H2.filter(c => c.statut !== 'annulee'), du))}</td><td class="n">${F(sum(H2, c => c.encValide ? c.encRecu : 0))}</td><td></td></tr></table></div>` : '<p class="vide">Aucune commande pour ces filtres.</p>');
       // tableau croisé par livreur
       const g = {}; P.filter(c => c.livreurId).forEach(c => { const x = g[c.livreurId] = g[c.livreurId] || {nom:c.livreurNom || '—', n:0, att:0, recu:0, aval:0, com:0, ann:0};
@@ -1615,8 +1637,11 @@ const ACT = {
       <label>Note (facultatif)<input id="nt" placeholder="Ex. payé en 2 fois"></label>
       <button class="btn vert plein">Valider : l'argent entre dans la caisse</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
       $('#fm').onsubmit = async ev => { ev.preventDefault(); const mt = +$('#mt').value || 0;
-        await DB.set('livraisons', id, {encValide:true, encValideLe:Date.now(), encRecu:mt, encMode:$('#md').value, encRef:$('#ref').value.trim(), encNote:$('#nt').value.trim(), encLitige:false});
-        fermer(); toast(mt < du(c) ? `✅ Validé. Attention : ${F(du(c) - mt)} de moins que prévu.` : '✅ Encaissement validé'); }; }); },
+        const v = {encValide:true, encValideLe:Date.now(), encRecu:mt, encMode:$('#md').value, encRef:$('#ref').value.trim(), encNote:$('#nt').value.trim(), encLitige:false};
+        try { await DB.set('livraisons', id, v); } catch(er){ return alarme('Validation impossible', 'Vérifiez votre connexion puis réessayez. (' + (er && er.message || er) + ')'); }
+        quittanceModal({...c, ...v}); if(mt < du(c)) toast(`⚠️ Attention : ${F(du(c) - mt)} de moins que prévu.`); }; }); },
+  quitCopier(v){ const [id, q] = String(v).split('|'), c = S.livraisons.find(x => x.id === id); if(c) copier(quittance(c, q), '✅ Quittance copiée'); },
+  quitRevoir(id){ const c = S.livraisons.find(x => x.id === id); if(c && c.encValide) quittanceModal(c); },
   async encNon(id){ await DB.set('livraisons', id, {encLitige:true, encLitigeLe:Date.now()}); toast('Marqué « pas encore reçu » : la commande reste à valider'); },
   cPer(k){ const f = S.cF, n = Date.now(); f.au = iso(n); f.du = k === 'j' ? iso(n) : k === '7' ? iso(n - 6 * 864e5) : k === 'm' ? iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)) : '2020-01-01';
     $('#cDu').value = f.du; $('#cAu').value = f.au; VUE.refresh(); },
@@ -1813,9 +1838,13 @@ const CH = { async ntfyLv(id, el){ await DB.set('livreurs', id, {ntfyOn: el.chec
   await DB.set('livraisons', id, {statut: c.statut === 'attente' ? 'acceptee' : c.statut, livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron', demarreLe:null, rappels:0, rappelLe:0}); toast('Attribuée à ' + l.nom); } };
 document.addEventListener('click', ev => { const b = ev.target.closest('[data-a]'); if(!b || !ACT[b.dataset.a]) return; ev.preventDefault(); ACT[b.dataset.a](b.dataset.id, b); });
 document.addEventListener('submit', async ev => { const f = ev.target; if(!f.classList.contains('avisF')) return; ev.preventDefault();
-  const note = +(new FormData(f).get('note') || 0); if(!note) return toast('Choisissez une note');
-  await DB.set('livraisons', f.dataset.id, {[f.dataset.qui === 'client' ? 'avisClient' : 'avisDest']: {note, txt:f.txt.value.trim(), t:Date.now()}});
-  toast(note <= 2 ? 'Merci. Vous pouvez aussi faire une réclamation.' : 'Merci pour votre avis !'); if(S.role === 'dest') avisDest(f.dataset.id); });
+  const note = +(new FormData(f).get('note') || 0), st = f.querySelector('.stars'), bt = f.querySelector('button');
+  if(!note){ st.classList.remove('secoue'); void st.offsetWidth; st.classList.add('secoue'); return alarme('⭐ Choisissez une note', 'Touchez d\'abord une étoile (1 à 5) au-dessus du commentaire, puis touchez « Envoyer mon avis ».'); }
+  bt.disabled = true; bt.textContent = '⏳ Envoi…';
+  try { await DB.set('livraisons', f.dataset.id, {[f.dataset.qui === 'client' ? 'avisClient' : 'avisDest']: {note, txt:f.txt.value.trim(), t:Date.now()}});
+    f.outerHTML = `<div class="avisOk"><p class="etoilesOk">${etoiles(note)}</p><p><b>Merci pour votre avis !</b>${f.txt.value.trim() ? '<br>« ' + esc(f.txt.value.trim()) + ' »' : ''}</p>${note <= 2 ? '<p class="note">Vous pouvez aussi faire une réclamation ci-dessous.</p>' : ''}</div>`;
+    toast('✅ Avis envoyé'); if(S.role === 'dest') avisDest(f.dataset.id); }
+  catch(er){ bt.disabled = false; bt.textContent = 'Envoyer mon avis'; alarme('Avis non envoyé', 'Vérifiez votre connexion internet puis réessayez. (' + (er && er.message || er) + ')'); } });
 document.addEventListener('change', ev => { const b = ev.target.closest('[data-c]'); if(b && CH[b.dataset.c]) CH[b.dataset.c](b.dataset.id, b); });
 $('#modal').addEventListener('click', ev => { if(ev.target.id === 'modal') fermer(); });
 // le téléphone n'autorise le son qu'après un premier toucher : on le prépare à ce moment-là
