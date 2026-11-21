@@ -237,6 +237,8 @@ label.lvOpt,.form label.lvOpt{display:flex!important;flex-direction:row;align-it
 .logoBox{position:relative;display:inline-block}.pastilles{position:absolute;top:50%;right:-20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px}.pastilles .pastille{min-width:36px;height:36px;font-size:18px}
 .bList{display:flex;flex-direction:column;gap:8px;margin:8px 0}.bItem{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-left:5px solid #e11d1d;border-radius:12px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer}.bItem small{color:var(--mut)}
 /* écrans d'installation */
+.instEtat{font-size:14px;color:#9a3412;background:#fff7ed;border-radius:10px;padding:8px 10px;margin:8px 0}.instEtat.pret{color:#166534;background:#dcfce7}
+.etapes{padding-left:20px}.etapes li{margin:8px 0}.etapes .btn{margin-top:6px}
 .deco{margin-top:14px;border-color:#94a3b8;color:#475569}.decoMini{display:block;margin-top:3px;background:none;border:1px solid var(--line);color:var(--mut);border-radius:99px;padding:3px 10px;font:inherit;font-size:12px;cursor:pointer}
 .choixApp{text-align:center}.choixApp .appIco{width:110px;height:110px;border-radius:24px;box-shadow:0 6px 18px rgba(0,0,0,.18);margin:8px auto 4px;display:block}.choixApp .btn.gros{font-size:18px;padding:16px}
 /* caisse */
@@ -316,7 +318,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '50';
+const VERSION = '52';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -442,9 +444,13 @@ const bandeau = (t, c) => `<div class="bandeau ${c}"><img src="${ICONE}" alt="">
 // ----- installation comme vraie application -----
 let invite = null;
 const installee = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || window.__testInstallee === true;
+const etatInst = () => invite ? '<p class="instEtat pret">✅ Prêt : touchez le bouton pour installer</p>' : dansWhatsApp() ? '<p class="instEtat">⚠️ Vous êtes dans WhatsApp : touchez le bouton, puis « Ouvrir dans Chrome ».</p>' : iPhone() ? '' : '<p class="instEtat">⏳ Chrome prépare l\'installation… (jusqu\'à 30 secondes la première fois, restez sur cette page)</p>';
 const modeCl = () => { try { return /[?&]app=client/.test(location.search) || sessionStorage.getItem('lienCl') === '1'; } catch(e) { return false; } };
 if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-addEventListener('beforeinstallprompt', e => { e.preventDefault(); invite = e; document.querySelectorAll('.btnInst').forEach(b => b.hidden = false); });
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); invite = e; document.querySelectorAll('.btnInst').forEach(b => b.hidden = false);
+  document.querySelectorAll('.instEtat').forEach(x => { x.className = 'instEtat pret'; x.textContent = '✅ Prêt : touchez le bouton pour installer'; });
+  const w = document.getElementById('instAttente'); if(w) w.innerHTML = '<p class="instEtat pret">✅ Chrome est prêt.</p><button class="btn vert plein gros" data-a="installer">📲 Installer maintenant</button>'; });
+const dansWhatsApp = () => /WhatsApp|FBAN|FBAV|Instagram|; wv\)/i.test(navigator.userAgent);
 addEventListener('appinstalled', () => { invite = null; document.querySelectorAll('.btnInst').forEach(b => b.hidden = true);
   if(modeLv() || modeCl()) alarme('✅ Application installée', `Ouvrez maintenant « ${S.p.entreprise} ${modeLv() ? 'Livreur' : 'Client'} » depuis l'écran d'accueil de votre téléphone.`); toast('✅ ' + S.p.entreprise + ' est installée sur votre téléphone'); });
 const btnInstaller = () => installee() ? '' : `<button class="btn plein btnInst instal" data-a="installer" ${invite || iPhone() ? '' : 'hidden'}>📲 Installer l'application ${esc(S.p.entreprise)}${modeLv() ? ' Livreur' : modeCl() ? ' Client' : ''}</button>`;
@@ -1063,7 +1069,7 @@ async function client(){ S.role = 'client'; ls.set('role', {r:'client'}); abonne
 /* client venu par le lien : installer l'application avant de commander, ou commander tout de suite */
 function choixClient(){ show(`${bandeau('Bienvenue', 'o1c')}<div class="pad choixApp"><img class="appIco" src="icon-cli-192.png" alt="" onerror="this.src='${LOGO}'">
   <h2>Envoyez vos colis avec ${esc(S.p.entreprise)}</h2><p>Installez l'application pour commander plus vite la prochaine fois et suivre vos colis d'un seul geste.</p>
-  <button class="btn jaune plein gros" data-a="installer">📲 Installer l'application (recommandé)</button>
+  <button class="btn jaune plein gros" data-a="installer">📲 Installer l'application (recommandé)</button>${etatInst()}
   <button class="btn plein" data-a="clSansInstaller">🛒 Commander sans installer</button>
   <p class="note">Gratuit, sans compte ni mot de passe.</p></div>`); }
 // recherche de lieu (OpenStreetMap / Nominatim, limitée au Bénin)
@@ -1296,7 +1302,7 @@ async function livreurLogin(){ const sv = ls.get('role', {}) || {};
   S.role = 'livreur-login';
   if(modeLv() && !installee() && !patronConnecte()) return show(`${bandeau('Application livreur', 'o2c')}<div class="pad choixApp"><img class="appIco" src="icon-liv-192.png" alt="" onerror="this.src='${LOGO}'">
     <h2>📲 Installation obligatoire</h2><p>Pour travailler avec ${esc(S.p.entreprise)}, installez l'application <b>${esc(S.p.entreprise)} Livreur</b> sur votre téléphone : elle reçoit les courses, partage votre position et sonne même écran éteint.</p>
-    <button class="btn jaune plein gros" data-a="installer">📲 Installer l'application livreur</button>
+    <button class="btn jaune plein gros" data-a="installer">📲 Installer l'application livreur</button>${etatInst()}
     <p class="note">Déjà installée ? Ouvrez <b>« ${esc(S.p.entreprise)} Livreur »</b> depuis l'écran d'accueil de votre téléphone (icône avec le bandeau bleu LIVREUR).</p></div>`);
   const act = S.livreurs.filter(l => l.actif !== false);
   show(`${bandeau('Connexion livreur', 'o2c')}<div class="pad">${act.length ? `<form id="f" class="form">
@@ -1682,8 +1688,16 @@ const ACT = {
     <button class="btn jaune plein" data-a="copierRegles">📋 Copier les règles</button><pre class="regles">${esc(REGLES_FIRESTORE)}</pre><button class="btn plein" data-a="fermer">Fermer</button>`); },
   copierRegles(){ if(!fabOuvert()) return; navigator.clipboard.writeText(REGLES_FIRESTORE).then(() => toast('✅ Règles copiées'), () => toast('Copie impossible : sélectionnez le texte et copiez-le')); },
   async installer(){ if(invite){ invite.prompt(); const r = await invite.userChoice; if(r.outcome === 'accepted') invite = null; return; }
-    modal(`<h2>📲 Installer ${esc(S.p.entreprise)}</h2>${iPhone() ? '<p>Dans Safari, touchez le bouton <b>Partager</b> (carré avec une flèche), puis <b>« Sur l\'écran d\'accueil »</b>, puis <b>Ajouter</b>.</p>'
-      : '<p>Dans Chrome, touchez <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b>.</p><p class="note">Si vous voyez seulement « Ajouter à l\'écran d\'accueil », rechargez la page et attendez quelques secondes.</p>'}<button class="btn plein" data-a="fermer">Fermer</button>`); },
+    const nomApp = S.p.entreprise + (modeLv() ? ' Livreur' : modeCl() ? ' Client' : ''), android = /Android/i.test(navigator.userAgent);
+    const chrome = `intent://${location.host}${location.pathname}${location.search || (modeLv() ? '?app=livreur' : modeCl() ? '?app=client' : '')}#Intent;scheme=https;package=com.android.chrome;end`;
+    modal(`<h2>📲 Installer ${esc(nomApp)}</h2>${iPhone() ? '<p>Dans Safari, touchez le bouton <b>Partager</b> (carré avec une flèche), puis <b>« Sur l\'écran d\'accueil »</b>, puis <b>Ajouter</b>.</p>'
+      : `${dansWhatsApp() ? '' : `<div id="instAttente"><p class="instEtat">⏳ Chrome prépare l'installation : restez sur cette page, touchez-la si besoin. Un bouton vert « Installer maintenant » apparaîtra ici (jusqu'à 30 secondes la première fois).</p></div><p class="soustitre">Sinon, à la main :</p>`}
+        <ol class="etapes"><li>Si cette page est ouverte <b>dans WhatsApp</b> (ou Facebook), ouvrez-la d'abord dans Chrome :${android ? `<a class="btn jaune plein" href="${chrome}">🌐 Ouvrir dans Chrome</a>` : ''}</li>
+        <li>Dans <b>Chrome</b>, touchez <b>⋮</b> en haut à droite.</li><li>Touchez <b>« Installer l'application »</b> (ou <b>« Ajouter à l'écran d'accueil »</b> → <b>Installer</b>).</li></ol>
+        <button class="btn s plein" data-a="copierLienApp">📋 Copier le lien (à coller dans Chrome)</button>
+        <p class="note">⚠️ Si Chrome propose <b>« Ouvrir l'application »</b> au lieu d'installer : ce téléphone a déjà l'application <b>${esc(S.p.entreprise)}</b> (celle du patron). Chrome n'accepte qu'une application par site sur un même téléphone : utilisez celle-là${modeLv() ? ' (Je suis livreur)' : ''}, ou installez ${esc(nomApp)} sur un autre téléphone.</p>`}
+      <button class="btn plein" data-a="fermer">Fermer</button>`); },
+  copierLienApp(){ copier(location.origin + location.pathname + (location.search || (modeLv() ? '?app=livreur' : modeCl() ? '?app=client' : '')), '✅ Lien copié : collez-le dans la barre d\'adresse de Chrome'); },
   testLv(id){ const l = S.livreurs.find(x => x.id === id); ntfy(canalLv(id), '🔔 Test ' + S.p.entreprise, `Bonjour ${l ? l.nom : ''}, vos alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.`, 5, '#livreur'); toast('Une alerte de test envoyée : le téléphone doit sonner'); },
   async ntfyOk(id){ const l = S.livreurs.find(x => x.id === id); await DB.set('livreurs', id, {ntfyOk: !l.ntfyOk}); },
   testNtfy(){ ntfy(canalPatron(), '🔔 Test ' + S.p.entreprise, 'Les alertes fonctionnent. Touchez cette notification pour arrêter la sonnerie.', 5, '#patron'); toast('Une alerte de test envoyée : touchez la notification pour arrêter la sonnerie'); },
