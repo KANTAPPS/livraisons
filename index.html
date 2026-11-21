@@ -227,7 +227,14 @@ label.lvOpt,.form label.lvOpt{display:flex!important;flex-direction:row;align-it
 .lvTxt{display:flex;flex-direction:column}.lvTxt small{color:var(--mut);font-size:13px}
 .card.choisi{border:2px solid #0284c7;background:#f0f9ff}.choisiTxt{background:#e0f2fe;color:#075985;border-radius:10px;padding:8px 10px;margin:4px 0 8px}
 .card.refusC{border:2px solid #dc2626;background:#fef2f2}
+/* ronds de notification */
+.opt{position:relative}.pastille{display:inline-grid;place-items:center;min-width:28px;height:28px;padding:0 7px;border-radius:99px;background:#e11d1d;color:#fff;font-weight:900;font-size:15px;line-height:1;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer}
+.opt>.pastille{position:absolute;top:-9px;right:-6px;z-index:2}.pastille.zero{background:#9ca3af}
+.logoBox{position:relative;display:inline-block}.pastilles{position:absolute;top:50%;right:-20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px}.pastilles .pastille{min-width:36px;height:36px;font-size:18px}
+.bList{display:flex;flex-direction:column;gap:8px;margin:8px 0}.bItem{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-left:5px solid #e11d1d;border-radius:12px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer}.bItem small{color:var(--mut)}
 /* caisse */
+.compta{display:grid;gap:8px}.compta .card{margin:0}.compta h4{margin:0 0 6px}.cl{margin:4px 0;padding:4px 0;border-bottom:1px dashed var(--line)}.cl.plus b{color:#15803d}.cl.moins b{color:#b91c1c}.cl.total{border-bottom:0;border-top:2px solid var(--ink);font-size:17px}
+.plusT{color:#15803d}.moinsT{color:#b91c1c}
 .quit{border-left:6px solid #16a34a}.quitTxt{white-space:pre-wrap;font-family:inherit;font-size:14px;background:#f8fafc;border:1px dashed #94a3b8;border-radius:10px;padding:10px;margin:0 0 10px}
 .dateBloc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin:6px 0}.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.row2 input{min-width:0;width:100%;padding-inline:8px}.row2 label{margin:0}
 .dateLue{margin:8px 0 0;color:#166534;font-size:14.5px}.dateLue:empty{display:none}
@@ -302,7 +309,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '47';
+const VERSION = '48';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -371,6 +378,13 @@ function clientsReguliers(){ const g = {};
 const net = x => String(x == null ? '' : x).replace(/\s+/g, ' ').trim();
 /* numéros Mobile Money de l'entreprise (l'ancien champ « momo » devient MTN) */
 const momoN = () => ({mtn:net(S.p.momoMtn != null ? S.p.momoMtn : S.p.momo), moov:net(S.p.momoMoov), celtiis:net(S.p.momoCeltiis)});
+/* grilles de frais de retrait (une ligne par tranche « jusqu'à MONTANT = FRAIS ») */
+const RESEAUX = [['mtn', 'MOMO MTN', 'MTN MoMo'], ['moov', 'MOOV MONEY', 'Moov Money'], ['celtiis', 'CELTIIS CASH', 'Celtiis Cash']];
+const grille = k => String(S.p['frais_' + k] || '').split(/\n/).map(x => x.replace(/\s/g, '').match(/^(\d+)[=:;>-]+(\d+)$/)).filter(Boolean).map(m => [+m[1], +m[2]]).sort((a, b) => a[0] - b[0]);
+const fraisRetrait = (k, mt) => { if(!mt) return 0; const g = grille(k); if(!g.length) return 0; const t = g.find(x => mt <= x[0]); return t ? t[1] : g[g.length - 1][1]; };
+const resKey = lib => { const x = RESEAUX.find(r => r[2] === lib || r[1] === lib || r[0] === lib); return x ? x[0] : ''; };
+/* montant à envoyer sur chaque réseau, frais de retrait compris */
+const montantsReseaux = mt => { const m = momoN(); return RESEAUX.filter(r => m[r[0]]).map(r => ({k:r[0], lib:r[1], num:m[r[0]], mt:mt + fraisRetrait(r[0], mt), fr:fraisRetrait(r[0], mt)})); };
 const momoListe = () => { const m = momoN(); return [m.mtn && 'MOMO MTN ' + m.mtn, m.moov && 'MOOV MONEY ' + m.moov, m.celtiis && 'CELTIIS CASH ' + m.celtiis].filter(Boolean); };
 const momoTxt = () => { const l = momoListe(); return l.length > 1 ? l.slice(0, -1).join(', ') + ' ou ' + l[l.length - 1] : l[0] || ''; };
 /* message WhatsApp au receveur : clair même si le patron l'envoie sans le relire */
@@ -379,7 +393,10 @@ function msgReceveur(c, code, lien){ const a = aPayer(c), dest = net(c.destNom),
   if(c.livrerLe) L.push(`📅 Livraison prévue : ${dateLongue(c.livrerLe)}.`, '');
   if(a.dest > 0){ const det = c.payeur === 'dest' && +c.valeur > 0 ? ` (livraison ${F(c.frais)} + marchandise ${F(c.valeur)})` : c.payeur === 'dest' ? ' (livraison)' : ' (marchandise)';
     L.push(`💰 À payer à la réception : ${F(a.dest)}${det}, à l'entreprise ${ent}.`);
-    L.push(`*Vous devez payer dès réception à ${ent}, uniquement par Mobile Money${momoTxt() ? ', à l\'un des numéros ' + momoTxt() : ''}. Tout paiement hors de ces numéros est considéré comme non valide par ${ent} et engage votre entière responsabilité.`); }
+    const mr = montantsReseaux(a.dest);
+    L.push(`*Vous devez payer dès réception à ${ent}, uniquement par Mobile Money${mr.length ? ", à l'un des numéros suivants" + (mr.some(x => x.fr) ? ' (frais de retrait compris)' : '') + ' :' : '.'}`);
+    mr.forEach(x => L.push(`• ${x.lib} ${x.num} : envoyez ${F(x.mt)}`));
+    L.push(`Tout paiement hors de ces numéros est considéré comme non valide par ${ent} et engage votre entière responsabilité.`); }
   else L.push("💰 Rien à payer pour vous : la livraison est réglée par l'expéditeur.");
   if(code){ L.push('', `🔑 Votre code de réception : ${code}`, `Ne le donnez au livreur qu'au moment où vous recevez le colis, après l'avoir vérifié. Ce code prouve que vous l'avez bien reçu : sans ce code, le livreur ne peut pas justifier la preuve de sa livraison.`); }
   L.push('', `📍 Suivez votre colis en cliquant sur ce lien : ${lien}`, '', `Avez-vous une question ?${S.p.tel ? ' Appelez ' + ent + ' au ' + net(S.p.tel) + '.' : ''}`);
@@ -389,7 +406,9 @@ const aPayer = c => { const fr = +c.frais || 0, v = +c.valeur || 0; return c.pay
 function payeHtml(c, pourLivreur){ const a = aPayer(c), parts = [a.exp ? `l'expéditeur <b>${F(a.exp)}</b>` : '', a.dest ? `le receveur <b>${F(a.dest)}</b>` : ''].filter(Boolean);
   return `<p class="paye">💰 ${c.payeur === 'dest' ? '<b>Le receveur paie</b> la livraison' : "<b>L'expéditeur paie</b> la livraison"} — payé à ${esc(S.p.entreprise)} <b>par Mobile Money</b> : ${parts.join(' · ') || 'rien à payer'}</p>`
     + (pourLivreur ? `<p class="paye nocash">🚫 <b>Ne prends aucun argent en espèces.</b> Le client paie directement ${esc(S.p.entreprise)} par Mobile Money.</p>` : ''); }
-const momoHtml = c => momoListe().length && !['livree','annulee'].includes(c.statut) ? `<p class="paye">📱 Payez <b>uniquement par Mobile Money</b> à ${esc(S.p.entreprise)} : <b>${esc(momoTxt())}</b>. Motif : <b>${esc(c.code)}</b>. Tout paiement hors de ces numéros n'est pas valide. Ne donnez pas d'espèces au livreur.</p>` : '';
+const momoHtml = (c, qui) => { const mt = qui === 'dest' ? aPayer(c).dest : aPayer(c).exp; if(!momoListe().length || ['livree','annulee'].includes(c.statut) || !mt) return '';
+  return `<div class="paye momoL">📱 Payez <b>uniquement par Mobile Money</b> à ${esc(S.p.entreprise)}, motif <b>${esc(c.code)}</b>${montantsReseaux(mt).some(x => x.fr) ? ' (frais de retrait compris)' : ''} :
+    ${montantsReseaux(mt).map(x => `<div class="row sb"><span>${x.lib} <b>${esc(x.num)}</b></span><b>${F(x.mt)}</b></div>`).join('')}<small>Tout paiement hors de ces numéros n'est pas valide. Ne donnez pas d'espèces au livreur.</small></div>`; };
 const codeRappel = c => c.codeExige ? `<p class="codeRap">🔑 <b>À la remise du colis</b>, demande au receveur son <b>code de réception</b> (4 chiffres, reçu par WhatsApp). Sans ce code, tu ne pourras pas terminer la livraison.</p>` : '';
 const lienColis = id => location.href.split('#')[0] + '#colis-' + id;
 // ----- messages entre livreur, expéditeur et receveur -----
@@ -474,8 +493,22 @@ function quittanceModal(c){ const a = aPayer(c), qs = [a.dest ? 'dest' : '', a.e
       return `<div class="card quit"><pre class="quitTxt">${esc(txt.replace(/\*/g, ''))}</pre>${tel ? `<a class="btn vert plein" href="${wa(tel, txt)}">📲 Envoyer à ${esc(nom || (q === 'exp' ? "l'expéditeur" : 'le receveur'))} par WhatsApp</a>` : '<p class="note">Pas de numéro enregistré pour cette personne.</p>'}
         <button class="btn s plein" data-a="quitCopier" data-id="${c.id}|${q}">📋 Copier la quittance</button></div>`; }).join('') || '<p class="note">Rien n\'était à payer pour cette commande.</p>'}
     <button class="btn plein" data-a="fermer">Terminer</button>`); }
+/* journal de caisse : toutes les entrées et sorties d'argent du patron, avec solde cumulé */
+function journalCaisse(a, b, lid){ const E = [], dans = t => t >= a && t < b;
+  S.livraisons.forEach(c => { if(lid && c.livreurId !== lid) return;
+    if(c.encValide && dans(c.encValideLe)) E.push({t:c.encValideLe, op:`Paiement reçu · ${c.code}`, det:`${net(c.payeur === 'dest' ? c.destNom : c.clientNom) || ''} · ${c.encMode || 'Mobile Money'}${c.encRef ? ' · réf. ' + c.encRef : ''}`, e:+c.encRecu || 0, typ:'enc'});
+    if(c.renvoye && dans(c.renvoyeLe)){ E.push({t:c.renvoyeLe, op:`Marchandise renvoyée · ${c.code}`, det:`à ${net(c.clientNom)} ${c.expMomo || ''}${c.renvoiRef ? ' · réf. ' + c.renvoiRef : ''}`, s:+c.valeur || 0, typ:'renv'});
+      if(+c.renvoiFrais) E.push({t:c.renvoyeLe + 1, op:`Frais d'envoi · ${c.code}`, det:'payés par le patron', s:+c.renvoiFrais, typ:'frais'}); } });
+  S.versements.filter(v => v.sens === 'paie' && dans(v.date) && (!lid || v.livreurId === lid)).forEach(v => E.push({t:v.date, op:`Paiement du livreur · ${v.livreurNom}`, det:v.note || '', s:+v.montant || 0, typ:'lv'}));
+  E.sort((x, y) => x.t - y.t); let solde = 0; E.forEach(x => { solde += (x.e || 0) - (x.s || 0); x.solde = solde; }); return E; }
+const aRenvoyer = () => S.livraisons.filter(c => c.encValide && +c.valeur > 0 && c.payeur === 'dest' && !c.renvoye).sort((a, b) => a.encValideLe - b.encValideLe);
 const aValider = () => S.livraisons.filter(c => ['avalider','nonrecu'].includes(etatCaisse(c)));
-const commission = c => (+c.frais || 0) * (+S.p.part || 0) / 100 + (+S.p.fixe || 0);
+/* ----- partage des frais de livraison : % du livreur (négocié par le patron, fiche du livreur) ; le patron a le reste + les frais de retrait ----- */
+const tauxDe = lid => { const l = S.livreurs.find(x => x.id === lid); return l && l.taux != null && l.taux !== '' ? +l.taux : +S.p.part || 0; };
+const tauxLv = c => c.tauxLv != null ? +c.tauxLv : tauxDe(c.livreurId);          // figé à la validation du paiement
+const commission = c => Math.round((+c.frais || 0) * tauxLv(c) / 100);
+const retraitDe = c => c.encValide ? Math.max(0, (+c.encRecu || 0) - du(c)) : 0;   // frais de retrait payés en plus : pour le patron
+const partPatron = c => (+c.frais || 0) - commission(c) + retraitDe(c) - (+c.renvoiFrais || 0);
 const gain = c => commission(c) ? `<p class="gain">Votre gain sur cette course : <b>${F(commission(c))}</b></p>` : '';
 // ----- estimation du temps d'arrivée des livreurs -----
 const VMOTO = 22, DETOUR = 1.5;   // vitesse moyenne moto en ville (km/h) ; détour accepté « sur le trajet » (km)
@@ -904,7 +937,7 @@ service cloud.firestore {
 const SUBS = {}; let roleAbo = '';
 function abo(nom, fn){ if(SUBS[nom]) return; SUBS[nom] = () => {}; const u = fn(); if(SUBS[nom]) SUBS[nom] = u || (() => {}); else try { u && u(); } catch {} }   // réservé avant l'appel : évite les boucles
 function desabo(prefixe){ for(const k in SUBS) if(k.startsWith(prefixe)){ try { SUBS[k](); } catch {} delete SUBS[k]; } }
-const poser = c => a => { S[c] = a; S.ok[c] = 1; VUE.refresh && VUE.refresh(); surveiller(); };
+const poser = c => a => { S[c] = a; S.ok[c] = 1; VUE.refresh && VUE.refresh(); surveiller(); if(S.role !== null) try { const B = badgeItems(), t = B.client.length + B.livreur.length + B.patron.length; if(navigator.setAppBadge){ if(t) navigator.setAppBadge(t); else navigator.clearAppBadge(); } } catch(e) {} };
 function abonnerRole(role){ if(roleAbo === role) return; roleAbo = role; desabo('r:');
   ['livraisons','positions','versements','plaintes','alertes','messages'].forEach(c => { S[c] = []; S.ok[c] = 0; });
   if(role === 'patron' || role === 'livreur'){
@@ -973,17 +1006,40 @@ const ICO = {
   colis:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>',
   moto:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M8 17h6l3-6h-4l-2-3H8M14 6h3"/></svg>',
   boss:'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>' };
-function accueil(){ S.role = null; ls.set('role', null); garderEcran(false);
-  show(`<section class="accueil"><img class="logo" src="${LOGO}" alt="${esc(S.p.entreprise)}">
+/* ----- ronds de notification (téléphone du patron connecté) : Client, Livreur, Patron ----- */
+const vusB = () => { try { return new Set(JSON.parse(localStorage.getItem('vusBadge') || '[]')); } catch(e) { return new Set(); } };
+function marquerVu(ks){ const v = vusB(); [].concat(ks).forEach(k => v.add(k)); try { localStorage.setItem('vusBadge', JSON.stringify([...v].slice(-1500))); } catch(e) {} }
+function badgeItems(){ const R0 = {client:[], livreur:[], patron:[]}; if(!patronConnecte()) return R0;
+  let dep = +ls.get('badgeDepuis', 0); if(!dep){ dep = Date.now() - 864e5; ls.set('badgeDepuis', dep); }   /* au début : seulement les dernières 24 h */
+  const L = S.livraisons, vu = vusB(), it = (cat, k, t, titre, sous, id, extra) => { if(t >= dep && !vu.has(k)) R0[cat].push({k, t, titre, sous, id, extra}); };
+  L.filter(c => c.source !== 'patron' && c.statut !== 'annulee').forEach(c => it('client', 'c' + c.id, c.creeLe || 0, `🛒 ${net(c.clientNom) || 'Client'} · ${c.code}`, `${c.departTxt || ''} → ${c.zone || ''} · ${F(du(c))}`, c.id));
+  L.forEach(c => { if(c.accepteeLe && c.livreurId) it('livreur', 'a' + c.id + c.accepteeLe, c.accepteeLe, `✅ ${c.livreurNom || nomLv(c.livreurId)} a accepté ${c.code}`, `${c.departTxt || ''} → ${c.zone || ''}`, c.id);
+    if(c.refusLe) it('livreur', 'r' + c.id + c.refusLe, c.refusLe, `🙅 ${nomLv((c.refus || []).slice(-1)[0])} a refusé ${c.code}`, 'Le client doit choisir un autre livreur', c.id);
+    if(c.livreeLe && c.statut === 'livree') it('livreur', 'l' + c.id, c.livreeLe, `📦 ${c.livreurNom || 'Le livreur'} a livré ${c.code}`, c.codeSaisi ? 'Code de réception vérifié' : c.valideParPatron ? 'Validée par vous sans code' : '', c.id); });
+  S.messages.filter(m => m.de === 'livreur').forEach(m => it('livreur', 'm' + (m._path || m.t), m.t || 0, `💬 ${m.nom || 'Livreur'} → ${m.a === 'dest' ? 'receveur' : 'expéditeur'}`, m.txt, m.livraisonId, m.txt));
+  aValider().forEach(c => it('patron', 'v' + c.id, c.livreeLe || 0, `💰 ${c.code} : ${F(du(c))} à valider`, 'Paiement Mobile Money à vérifier dans la Caisse', c.id));
+  aRenvoyer().forEach(c => it('patron', 'rv' + c.id, c.encValideLe || 0, `💼 ${c.code} : ${F(c.valeur)} à renvoyer`, `À ${net(c.clientNom)} ${c.expMomo || ''}`, c.id));
+  S.plaintes.filter(x => x.statut !== 'resolue').forEach(x => it('patron', 'p' + x.id, x.creeLe || 0, `⚠️ Réclamation ${x.code || ''} : ${x.motif || ''}`, x.texte || '', x.livraisonId, `${x.nom || ''} ${x.tel || ''} : ${x.texte || ''}`));
+  S.alertes.forEach(x => it('patron', 'al' + x.id, x.t || 0, `🚨 ${x.livreurNom || 'Livreur'} près de ${x.clientNom || 'un client'}`, 'Présence suspecte hors course', null, `${x.livreurNom || ''} était près de ${x.clientNom || ''} ${x.clientTel || ''} sans course.`));
+  L.filter(c => c.statut === 'attente' && Date.now() - c.creeLe > 5 * 60000).forEach(c => it('patron', 'sl' + c.id, c.creeLe + 5 * 60000, `⏳ ${c.code} : aucun livreur depuis 5 min`, `${c.departTxt || ''} → ${c.zone || ''}`, c.id));
+  Object.values(R0).forEach(a => a.sort((x, y) => y.t - x.t)); return R0; }
+function majBadges(){ const B = badgeItems(), tot = B.client.length + B.livreur.length + B.patron.length, pc = patronConnecte();
+  ['client','livreur','patron'].forEach(k => document.querySelectorAll(`.pastille[data-id="${k}"]`).forEach(e => { const n = B[k].length;
+    e.textContent = n > 99 ? '99+' : n; e.classList.toggle('zero', !n); e.hidden = !pc || (!n && !e.closest('.pastilles')); }));
+  const pp = document.querySelector('.pastilles'); if(pp) pp.hidden = !pc;
+  try { if(navigator.setAppBadge){ if(tot) navigator.setAppBadge(tot); else navigator.clearAppBadge(); } } catch(e) {} }
+const pastille = k => `<span class="pastille" data-a="badges" data-id="${k}" hidden></span>`;
+function accueil(){ S.role = null; ls.set('role', null); garderEcran(false); abonnerRole(patronConnecte() ? 'patron' : '');
+  show(`<section class="accueil"><div class="logoBox"><img class="logo" src="${LOGO}" alt="${esc(S.p.entreprise)}"><div class="pastilles" hidden>${pastille('client')}${pastille('livreur')}${pastille('patron')}</div></div>
     <h1>${esc(S.p.entreprise)}</h1><p>Livraison en moto, suivie en direct sur la carte.</p>
     <div class="opts">
-      <button class="opt o1" data-a="go" data-id="client"><span class="ico">${ICO.colis}</span><span><b>J'envoie un colis</b><small>Appeler un livreur depuis ma position</small></span></button>
-      <button class="opt o2" data-a="go" data-id="livreur"><span class="ico">${ICO.moto}</span><span><b>Je suis livreur</b><small>Voir les courses et partager ma position</small></span></button>
-      <button class="opt o3" data-a="go" data-id="patron"><span class="ico">${ICO.boss}</span><span><b>Espace patron</b><small>${patronConnecte() ? '✅ Connecté : entrez sans code' : 'Livreurs, caisse et rapports'}</small></span></button>
+      <button class="opt o1" data-a="go" data-id="client">${pastille('client')}<span class="ico">${ICO.colis}</span><span><b>J'envoie un colis</b><small>Appeler un livreur depuis ma position</small></span></button>
+      <button class="opt o2" data-a="go" data-id="livreur">${pastille('livreur')}<span class="ico">${ICO.moto}</span><span><b>Je suis livreur</b><small>Voir les courses et partager ma position</small></span></button>
+      <button class="opt o3" data-a="go" data-id="patron">${pastille('patron')}<span class="ico">${ICO.boss}</span><span><b>Espace patron</b><small>${patronConnecte() ? '✅ Connecté : entrez sans code' : 'Livreurs, caisse et rapports'}</small></span></button>
       ${patronConnecte() ? '<button class="btn s plein" data-a="deconnexion" style="margin-top:-4px">🔒 Se déconnecter (le code patron sera redemandé)</button>' : ''}
     </div><div style="margin-top:16px">${btnInstaller()}</div>
     ${avecMention() ? `<div class="kant"><p><b>Vous voulez une application comme celle-ci pour votre commerce ?</b></p><p data-fab>Conçue par <b>${CONCEPTEUR.nom}</b> · ${CONCEPTEUR.tel}</p>${contactKant()}</div>` : ''}
-    <p class="ver">LIVRAISONS · version ${VERSION}</p></section>`); }
+    <p class="ver">LIVRAISONS · version ${VERSION}</p></section>`, {init: majBadges, refresh: majBadges}); }
 
 // ---------- client ----------
 async function client(){ S.role = 'client'; ls.set('role', {r:'client'}); abonnerRole('client');
@@ -1080,10 +1136,13 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
     <div id="prixBloc" class="prixBloc att">📍 Le prix s'affichera dès que vous aurez choisi <b>où le livreur prend le colis</b> et <b>où il le livre</b>.</div>
     <label id="zoneLbl" hidden>Zone de livraison (trouvée d'après le lieu choisi, corrigez si besoin)<select name="zone"><option value="">— Choisissez la zone —</option>${zoneOpts()}</select></label>
     <p class="note" id="fid"></p>
-    <label>Valeur de la marchandise, payée par le receveur (0 si rien)<input name="val" type="number" min="0" value="0" inputmode="numeric"></label>
     <p class="soustitre">Qui paie la livraison ?</p><div class="choix">
       <label><input type="radio" name="payeur" value="client" checked>💵 Je paie la livraison</label>
-      <label><input type="radio" name="payeur" value="dest">🏠 Le receveur paie</label></div><p class="note" id="payInfo"></p></fieldset>
+      <label><input type="radio" name="payeur" value="dest">🏠 Le receveur paie</label></div>
+    <div id="valBox" hidden><label>Valeur de la marchandise, payée par le receveur (0 si rien)<input name="val" type="number" min="0" value="0" inputmode="numeric"></label>
+      <div id="expMomoBox" class="dateBloc" hidden><p class="note">💼 ${esc(S.p.entreprise)} reçoit l'argent de la marchandise du receveur et vous le <b>renvoie</b> sur votre Mobile Money.</p>
+        <div class="row2"><label>Votre numéro Mobile Money<input name="expMomo" type="tel" inputmode="tel"></label><label>Réseau<select name="expReseau">${RESEAUX.map(r => `<option value="${r[0]}">${r[2]}</option>`).join('')}</select></label></div></div></div>
+    <p class="note" id="payInfo"></p></fieldset>
     <button class="btn jaune plein">Appeler un livreur</button></form></div>`, {init(){
     const m = carte('m1'), f = $('#f'); let upd = () => {}, fraisCalc = null, distCalc = null;
     const majProches = () => { const z = $('#lvProches'); if(!z) return; if(!pos) return;
@@ -1120,10 +1179,12 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       $('#prixBloc').innerHTML = fr == null ? msg : `<small>Prix de la livraison</small><b>${F(fr)}${off ? ' 🎁' : ''}</b><span>${info}</span>`;
       const rf = resteFid(f.tel.value);
       $('#fid').innerHTML = off ? '🎁 <b>Cette livraison vous est offerte</b> grâce à votre fidélité !' : rf != null && telCle(f.tel.value).length >= 8 ? `🎁 Encore ${rf} livraison(s) avec ${esc(S.p.entreprise)} et la suivante est offerte.` : '';
-      const dest = f.querySelector('[name=payeur]:checked').value === 'dest', v = +f.val.value || 0, frs = fr || 0;
+      const dest = f.querySelector('[name=payeur]:checked').value === 'dest'; $('#valBox').hidden = !dest; if(!dest) f.val.value = 0;
+      const v = +f.val.value || 0, frs = fr || 0; $('#expMomoBox').hidden = !(dest && v > 0); f.expMomo.required = dest && v > 0;
       f.dTel.required = dest;
-      $('#payInfo').textContent = fr == null ? '' : dest ? `Le receveur paiera ${F(frs + v)} à ${S.p.entreprise}, uniquement par Mobile Money, à la réception. Son téléphone est obligatoire : il recevra par WhatsApp les numéros de paiement et son code de réception.`
-        : `Vous paierez ${F(frs)} à ${S.p.entreprise}, uniquement par Mobile Money${momoTxt() ? ' (' + momoTxt() + ')' : ''}, quand le livreur prendra le colis.${v ? ` Le receveur paiera ${F(v)} pour la marchandise, par Mobile Money.` : ''} Ne donnez pas d'espèces au livreur.`; };
+      const mrs = montantsReseaux(frs).map(x => `${x.lib} ${x.num} : ${F(x.mt)}`).join(' · ');
+      $('#payInfo').textContent = fr == null ? '' : dest ? `Le receveur paiera ${F(frs + v)} à ${S.p.entreprise} (+ frais de retrait selon son réseau), uniquement par Mobile Money, à la réception. Son téléphone est obligatoire : il recevra par WhatsApp les numéros de paiement et son code de réception.`
+        : `Vous paierez ${F(frs)} à ${S.p.entreprise}, uniquement par Mobile Money, quand le livreur prendra le colis${mrs ? ' — ' + mrs : ''}. Ne donnez pas d'espèces au livreur.`; };
     f.zone.onchange = upd; f.val.oninput = upd; f.tel.onchange = upd; f.querySelectorAll('[name=payeur]').forEach(r => r.onchange = upd); upd(); $('#bGps').click();
     f.onsubmit = async ev => { ev.preventDefault();
       if((S.bloques || []).includes(telCle(f.tel.value))) return alarme('Commande impossible', "Ce numéro ne peut plus commander. Contactez l'entreprise" + (S.p.tel ? ' au ' + S.p.tel : '') + '.');
@@ -1139,7 +1200,7 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       if(lvCh && !posLv(lvCh)) return toast("Ce livreur n'est plus en service : choisissez-en un autre");
       const nC = {code:codeCmd()};
       const id = await DB.add('livraisons', {code:nC.code, livreurDemande:lvCh || null, demandeLe:lvCh ? Date.now() : 0, clientNom:d.nom, clientTel:d.tel, depart:pos, departTxt:d.rep, zone:d.zone, dest:d.dest, destPos,
-        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:fraisCalc, distanceKm:modeKm() ? distCalc : null, offerte, limiteRecup:lim, livrerLe:livrerLe || 0, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
+        destNom:d.dNom, destTel:d.dTel, colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:d.payeur === 'dest' ? +d.val || 0 : 0, expMomo:d.payeur === 'dest' && +d.val ? (d.expMomo || '').trim() : '', expReseau:d.payeur === 'dest' && +d.val ? d.expReseau : '', frais:fraisCalc, distanceKm:modeKm() ? distCalc : null, offerte, limiteRecup:lim, livrerLe:livrerLe || 0, statut:'attente', creeLe:Date.now(), source:'client', clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true});
       const code = codeAleatoire(); await DB.set('codes', id + '_' + code, {t:Date.now()}); ls.set('code_' + id, code);
       choisirLvAlerte({code:nC.code, departTxt:d.rep, zone:d.zone, frais:fraisCalc, limiteRecup:lim, livrerLe}, id, lvCh);
       ls.set('cmd', id); toast(lvCh ? '✅ Demande envoyée au livreur choisi. Patientez, il doit accepter.' : '✅ Demande envoyée ! Patientez, nous prévenons les livreurs.'); memoriser(d.rep, pos, ''); memoriser(d.dest, destPos, d.zone); suivi(id); if(d.payeur === 'dest') setTimeout(() => ACT.prevenirDest(id), 600); }; }, refresh(){ this.majProches && this.majProches(); }}); }
@@ -1172,7 +1233,7 @@ function suivi(id){ let w = 0; abonnerRole('client'); suivreColis(id);
         + mesPlaintes(id) + (c.statut !== 'attente' ? `<button class="btn rouge plein" data-a="plainte" data-id="${id}|client">Faire une réclamation</button>` : ''); }
       const kp = c.payeur + c.statut + (c.destTel || '');
       if(kp !== this.kp){ this.kp = kp; const fin = ['livree','annulee'].includes(c.statut);
-        $('#pay').innerHTML = `<div class="card c-pay"><h3>💰 Paiement</h3>${payeHtml(c)}${c.offerte ? '<p class="paye">🎁 Livraison offerte grâce à votre fidélité.</p>' : ''}${momoHtml(c)}
+        $('#pay').innerHTML = `<div class="card c-pay"><h3>💰 Paiement</h3>${payeHtml(c)}${c.offerte ? '<p class="paye">🎁 Livraison offerte grâce à votre fidélité.</p>' : ''}${momoHtml(c, 'exp')}
           ${fin ? '' : `<div class="choix"><button class="btn s ${c.payeur !== 'dest' ? 'jaune' : ''}" data-a="payeur" data-id="${id}|client">💵 Je paie la livraison</button>
           <button class="btn s ${c.payeur === 'dest' ? 'jaune' : ''}" data-a="payeur" data-id="${id}|dest">🏠 Le receveur paie</button></div>
           ${c.payeur === 'dest' ? `<button class="btn s plein" data-a="prevenirDest" data-id="${id}">📲 Prévenir le receveur par WhatsApp</button>` : ''}`}</div>`; }
@@ -1202,7 +1263,7 @@ function avisDest(id){ S.role = 'dest'; S.destId = id; abonnerRole('dest');
       ${code && !['livree','annulee'].includes(c.statut) ? `<div class="card c-code"><h3>🔑 Votre code de réception : <span class="codeBig">${code}</span></h3><p class="note">Donnez ce code au livreur <b>seulement quand vous avez le colis en main</b>. Sans lui, la livraison ne peut pas être validée.</p></div>` : ''}
       <div class="card"><p><b>Colis :</b> ${esc(c.colis || '')}</p>${consignesHtml(c)}
       <p class="paye">💰 ${a.dest ? `Vous payez <b>${F(a.dest)}</b> à ${esc(S.p.entreprise)} à la réception, <b>uniquement par Mobile Money</b>${c.payeur === 'dest' ? ' (livraison' + (c.valeur ? ' + colis' : '') + ')' : ' (colis)'}.` : "La livraison est payée par l'expéditeur : vous n'avez rien à payer."}</p>
-      ${momoHtml(c)}${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Livreur :</b> ${esc(c.livreurNom)}</p></div>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
+      ${momoHtml(c, 'dest')}${c.livreurNom ? `<div class="row">${avatar(c.livreurId, 'grand')}<p style="margin:0"><b>Livreur :</b> ${esc(c.livreurNom)}</p></div>${['acceptee','recuperee'].includes(c.statut) || !S.p.masquer ? `<div class="row">${contact(c.livreurTel)}</div>` : ''}` : '<p class="note">Un livreur va être choisi.</p>'}</div>
       ${c.livreurId ? `<div class="card c-msg"><h3>💬 Messages avec le livreur</h3>${filMsgs(id, voir, 'dest') || '<p class="note">Aucun message pour l\'instant.</p>'}
         ${['livree','annulee'].includes(c.statut) ? '' : repRapides(id, 'dest', MSG_DEST, 'livreur')}</div>` : ''}
       ${c.avisDest ? `<div class="card"><p>Votre avis : <span class="etoiles">${etoiles(c.avisDest.note)}</span></p><p class="note">Merci !</p></div>` : c.statut === 'livree' ? `<div class="card c-avis"><h3>⭐ Notez la livraison</h3>${formAvis(id, 'dest')}</div>` : ''}
@@ -1275,7 +1336,13 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur');
           <div class="kpi v"><small>Mes gains du jour</small><b>${F(sum(auj, commission))}</b></div></div>
           ${(() => { const mo = moyenne(l.id); return mo ? `<p>Ma note : <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} / 5 (${mo.n} avis)</p>` : ''; })()}<h3>Mes gains (depuis le début)</h3><div class="kpis"><div class="kpi"><small>Courses livrées</small><b>${s.liv.length}</b></div><div class="kpi v"><small>Mes gains</small><b>${F(s.part)}</b></div>
           <div class="kpi"><small>Déjà payé par le patron</small><b>${F(s.vers)}</b></div><div class="kpi fort"><small>Reste à me payer</small><b>${F(s.reste)}</b></div></div>
-          <h3>Livrées aujourd'hui</h3>${auj.length ? `<table><tr><th>Heure</th><th>Commande</th><th class="n">Mon gain</th></tr>${auj.sort((a,b) => b.livreeLe - a.livreeLe).map(c => `<tr><td>${H(c.livreeLe)}</td><td>${esc(c.code)}</td><td class="n">${F(commission(c))}</td></tr>`).join('')}</table>` : '<p class="note">Aucune pour l\'instant.</p>'}`; } } }); }
+          <h3>📒 Mon historique</h3><div class="row"><button class="btn s ${(S.bilP || 'm') === 'j' ? 'jaune' : ''}" data-a="bilPer" data-id="j">Aujourd'hui</button><button class="btn s ${(S.bilP || 'm') === '7' ? 'jaune' : ''}" data-a="bilPer" data-id="7">7 jours</button><button class="btn s ${(S.bilP || 'm') === 'm' ? 'jaune' : ''}" data-a="bilPer" data-id="m">Ce mois</button><button class="btn s ${(S.bilP || 'm') === 't' ? 'jaune' : ''}" data-a="bilPer" data-id="t">Tout</button></div>
+          ${(() => { const n = Date.now(), k = S.bilP || 'm', d0 = k === 'j' ? jour(n) : k === '7' ? jour(n) - 6 * 864e5 : k === 'm' ? +new Date(new Date().getFullYear(), new Date().getMonth(), 1) : 0;
+            const Lv = s.liv.filter(c => (c.livreeLe || 0) >= d0).sort((a, b) => b.livreeLe - a.livreeLe), Pv = S.versements.filter(v => v.livreurId === l.id && v.sens === 'paie' && v.date >= d0).sort((a, b) => b.date - a.date);
+            return `<div class="kpis"><div class="kpi"><small>Livraisons</small><b>${Lv.length}</b></div><div class="kpi v"><small>Mes gains</small><b>${F(sum(Lv, commission))}</b></div><div class="kpi"><small>Payé par le patron</small><b>${F(sum(Pv, v => v.montant))}</b></div></div>
+              <h4>🛵 Mes livraisons</h4>${Lv.length ? `<div class="scroll"><table class="cHist"><tr><th>Date</th><th>Commande</th><th class="n">Frais</th><th class="n">Ma part</th><th class="n">Mon gain</th></tr>${Lv.map(c => `<tr><td>${new Date(c.livreeLe).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})}<br><span class="note">${H(c.livreeLe)}</span></td><td>${esc(c.code)}</td><td class="n">${F(c.frais)}</td><td class="n">${tauxLv(c)} %</td><td class="n"><b>${F(commission(c))}</b></td></tr>`).join('')}
+                <tr class="tot"><td colspan="2">Total</td><td class="n">${F(sum(Lv, c => c.frais))}</td><td></td><td class="n">${F(sum(Lv, commission))}</td></tr></table></div>` : '<p class="note">Aucune livraison sur cette période.</p>'}
+              <h4>💵 Paiements reçus du patron</h4>${Pv.length ? `<table><tr><th>Date</th><th>Note</th><th class="n">Montant</th></tr>${Pv.map(v => `<tr><td>${D(v.date)}</td><td>${esc(v.note || '')}</td><td class="n">${F(v.montant)}</td></tr>`).join('')}<tr class="tot"><td colspan="2">Total</td><td class="n">${F(sum(Pv, v => v.montant))}</td></tr></table>` : '<p class="note">Aucun paiement sur cette période.</p>'}`; })()}`; } } }); }
 
 // ---------- patron ----------
 async function patronLogin(){
@@ -1366,7 +1433,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       const on = p && p.enService && Date.now() - p.t < 10 * 60000;
       return `<div class="card"><div class="row sb"><span class="row" style="margin:0">${avatar(l.id, 'moyen') || '<span class="avatar moyen vide">📷</span>'}<b>${esc(l.nom)}</b></span><span class="pill ${l.actif === false ? 'annulee' : on ? 'livree' : 'attente'}">${l.actif === false ? 'Désactivé' : on ? 'En service' : 'Hors service'}</span></div>
         ${S.p.ntfyCanal ? `<p class="note">🔔 Canal ntfy : <b>${esc(canalLv(l.id))}</b></p><p>${l.ntfyOk ? '<span class="badge vert">🔔 Alertes ntfy vérifiées</span>' : '<span class="badge" style="background:var(--r)">⚠️ Alertes ntfy non vérifiées</span>'}</p>
-          <div class="row"><button class="btn s" data-a="testLv" data-id="${l.id}">🔔 Tester</button><button class="btn s ${l.ntfyOk ? '' : 'jaune'}" data-a="ntfyOk" data-id="${l.id}">${l.ntfyOk ? 'Retirer la vérification' : '✓ Son téléphone a sonné'}</button></div>` : ''}<p>${esc(l.tel)} · PIN 🔒${(() => { const mo = moyenne(l.id); return mo ? ` · <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} (${mo.n})` : ''; })()}</p><p class="note">${solde(l.id).liv.length} course(s) livrée(s)${p && p.t ? ' · vu le ' + D(p.t) + ' à ' + H(p.t) : ''}</p>
+          <div class="row"><button class="btn s" data-a="testLv" data-id="${l.id}">🔔 Tester</button><button class="btn s ${l.ntfyOk ? '' : 'jaune'}" data-a="ntfyOk" data-id="${l.id}">${l.ntfyOk ? 'Retirer la vérification' : '✓ Son téléphone a sonné'}</button></div>` : ''}<p>${esc(l.tel)} · PIN 🔒${(() => { const mo = moyenne(l.id); return mo ? ` · <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} (${mo.n})` : ''; })()} · 💰 part ${tauxDe(l.id)} % · patron ${100 - tauxDe(l.id)} %</p><p class="note">${solde(l.id).liv.length} course(s) livrée(s)${p && p.t ? ' · vu le ' + D(p.t) + ' à ' + H(p.t) : ''}</p>
         <div class="row">${contact(l.tel)}<button class="btn s" data-a="lvEdit" data-id="${l.id}">Modifier</button>
         <button class="btn s ${l.actif === false ? '' : 'rouge'}" data-a="lvToggle" data-id="${l.id}">${l.actif === false ? 'Réactiver' : 'Désactiver'}</button><button class="btn s rouge" data-a="lvSuppr" data-id="${l.id}">🗑️ Supprimer</button></div></div>`; }).join('')
       || '<p class="vide">Aucun livreur. Ajoutez le premier.</p>'; }},
@@ -1388,21 +1455,28 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
         ${res.length ? `<details><summary>${res.length} réclamation(s) résolue(s)</summary>${res.map(carteP).join('')}</details>` : ''}
         <h3>Notes des livreurs</h3>${notes.length ? `<table><tr><th>Livreur</th><th>Note</th><th class="n">Avis</th></tr>${notes.map(x => `<tr><td>${esc(x.l.nom)}</td><td><span class="etoiles">${etoiles(x.mo.m)}</span> ${x.mo.m.toFixed(1)}</td><td class="n">${x.mo.n}</td></tr>`).join('')}</table>` : '<p class="note">Pas encore d\'avis.</p>'}
         <h3>Derniers commentaires</h3>${coms.map(([qui, a, c]) => `<div class="card"><span class="etoiles">${etoiles(a.note)}</span> <span class="note">${qui} · ${esc(c.code)} · ${esc(c.livreurNom || '')}</span><p>${esc(a.txt)}</p></div>`).join('') || '<p class="note">Aucun.</p>'}`; }},
-  cai: {h:`<div class="pad"><div id="cK"></div><div id="cVal"></div><div id="cCours"></div>
+  cai: {h:`<div class="pad"><div id="cK"></div><div id="cVal"></div><div id="cRenv"></div><div id="cCours"></div>
       <h3 class="sec">🔎 Historique et filtres</h3>
       <div class="filtres"><div class="row"><button class="btn s" data-a="cPer" data-id="j">Aujourd'hui</button><button class="btn s" data-a="cPer" data-id="7">7 jours</button><button class="btn s" data-a="cPer" data-id="m">Ce mois</button><button class="btn s" data-a="cPer" data-id="t">Tout</button></div>
         <label>Du<input id="cDu" type="date"></label><label>Au<input id="cAu" type="date"></label>
         <label>Livreur<select id="cLv"><option value="">Tous</option>${S.livreurs.map(l => `<option value="${l.id}">${esc(l.nom)}</option>`).join('')}</select></label>
         <label>État<select id="cEt"><option value="">Tous</option>${Object.keys(ETATS).map(k => `<option value="${k}">${ETATS[k][0]}</option>`).join('')}</select></label></div>
-      <p class="note">↔️ Faites glisser le tableau sur le côté pour voir toutes les colonnes.</p><div id="cHist"></div><div id="cPiv"></div><div id="cInv"></div><div id="cVers"></div></div>`,
+      <p class="note">↔️ Faites glisser le tableau sur le côté pour voir toutes les colonnes.</p><div id="cHist"></div><div id="cCompta"></div><div id="cJour"></div><div id="cPiv"></div><div id="cInv"></div><div id="cVers"></div></div>`,
     init(){ const f = S.cF = S.cF || {du:iso(Date.now() - 29 * 864e5), au:iso(Date.now()), lv:'', et:'', tri:'n'};
       $('#cDu').value = f.du; $('#cAu').value = f.au; $('#cLv').value = f.lv; $('#cEt').value = f.et;
       $('#cDu').onchange = $('#cAu').onchange = $('#cLv').onchange = $('#cEt').onchange = () => { f.du = $('#cDu').value; f.au = $('#cAu').value; f.lv = $('#cLv').value; f.et = $('#cEt').value; VUE.refresh(); }; },
     refresh(){ const f = S.cF, L = S.livraisons, now = Date.now(), t0 = jour(now), m0 = +new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       const val = aValider().sort((a,b) => (a.livreeLe || 0) - (b.livreeLe || 0)), cours = L.filter(c => etatCaisse(c) === 'cours').sort((a,b) => b.creeLe - a.creeLe);
       const recuLe = (a, b) => sum(L.filter(c => c.encValide && c.encValideLe >= a && c.encValideLe < b), c => c.encRecu);
+      const renv = aRenvoyer(), partLe = (a, b) => sum(L.filter(c => c.encValide && c.encValideLe >= a && c.encValideLe < b), partPatron);
       $('#cK').innerHTML = `<div class="kpis"><div class="kpi a"><small>⏳ À valider (${val.length})</small><b>${F(sum(val, du))}</b></div><div class="kpi c"><small>📦 En cours (${cours.length})</small><b>${F(sum(cours, du))}</b></div>
-        <div class="kpi v"><small>✅ Reçu aujourd'hui</small><b>${F(recuLe(t0, t0 + 864e5))}</b></div><div class="kpi fort"><small>Reçu ce mois</small><b>${F(recuLe(m0, now + 1))}</b></div></div>`;
+        <div class="kpi v"><small>✅ Reçu aujourd'hui</small><b>${F(recuLe(t0, t0 + 864e5))}</b></div><div class="kpi fort"><small>Reçu ce mois</small><b>${F(recuLe(m0, now + 1))}</b></div>
+        <div class="kpi v"><small>👑 Part du patron ce mois</small><b>${F(partLe(m0, now + 1))}</b></div><div class="kpi ${renv.length ? 'a' : ''}"><small>💼 À renvoyer (${renv.length})</small><b>${F(sum(renv, c => c.valeur))}</b></div></div>`;
+      $('#cRenv').innerHTML = renv.length ? `<h3 class="sec">💼 Marchandise à renvoyer aux expéditeurs</h3><p class="note">Cet argent appartient aux expéditeurs : renvoyez-le sur leur Mobile Money. Les frais d'envoi sont à votre charge et sont retirés de votre part.</p>`
+        + renv.map(c => `<div class="card encCard"><div class="row sb"><b>${esc(c.code)}</b><b class="gros">${F(c.valeur)}</b></div>
+          <p>À <b>${esc(net(c.clientNom) || 'l\'expéditeur')}</b> · ${c.expMomo ? `${esc((RESEAUX.find(r => r[0] === c.expReseau) || [,, 'Mobile Money'])[2])} <b>${esc(c.expMomo)}</b>` : `<span class="ecart">numéro Mobile Money non donné</span> (${esc(c.clientTel || '')})`}</p>
+          <p class="note">Payé par ${esc(net(c.destNom) || 'le receveur')} le ${D(c.encValideLe)} (${esc(c.encMode || '')})</p>
+          <div class="row"><button class="btn vert" data-a="renvoyer" data-id="${c.id}">✅ Renvoyé</button>${c.clientTel ? contact(c.clientTel) : ''}</div></div>`).join('') : '';
       $('#cVal').innerHTML = `<h3 class="sec">⏳ Livrées : paiement Mobile Money à valider</h3><p class="note">Le colis est livré (code du receveur vérifié). Validez quand le <b>Mobile Money est vraiment arrivé</b> sur vos numéros. Tant que ce n'est pas fait, la commande reste ici.</p>`
         + (val.map(c => { const e = etatCaisse(c);
           return `<div class="card encCard ${e === 'nonrecu' ? 'r' : ''}"><div class="row sb"><b>${esc(c.code)}</b>${etq(e)}</div>
@@ -1417,15 +1491,28 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       $('#cHist').innerHTML = `<p class="note">${H2.length} commande(s) · du ${D(a)} au ${D(b - 1)}${f.lv ? ' · ' + esc((S.livreurs.find(l => l.id === f.lv) || {}).nom || '') : ''}</p>` + (H2.length ? `<div class="scroll"><table class="cHist"><tr><th>Date</th><th>Commande</th><th>Livreur</th><th class="n">Attendu</th><th class="n">Reçu</th><th>État</th></tr>
         ${H2.slice(0, 200).map(c => `<tr><td>${new Date(dt(c)).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})}<br><span class="note">${H(dt(c))}</span></td><td><b>${esc(c.code)}</b></td><td>${esc(c.livreurNom || '—')}</td><td class="n">${F(du(c))}</td><td class="n">${c.encValide ? F(c.encRecu) : '—'}</td><td>${etq(etatCaisse(c))}${c.encMode ? '<br><span class="note">' + esc(c.encMode) + '</span>' : ''}${c.encValide ? `<br><button class="btn s" data-a="quitRevoir" data-id="${c.id}">🧾 Quittance</button>` : ''}</td></tr>`).join('')}
         <tr class="tot"><td colspan="3">Total</td><td class="n">${F(sum(H2.filter(c => c.statut !== 'annulee'), du))}</td><td class="n">${F(sum(H2, c => c.encValide ? c.encRecu : 0))}</td><td></td></tr></table></div>` : '<p class="vide">Aucune commande pour ces filtres.</p>');
+      // comptabilité de la période
+      const VP = P.filter(c => c.encValide && c.encValideLe >= a && c.encValideLe < b), J = journalCaisse(a, b, f.lv), tE = sum(J, x => x.e || 0);
+      const tRenv = sum(J.filter(x => x.typ === 'renv'), x => x.s), tFr = sum(J.filter(x => x.typ === 'frais'), x => x.s), tLv = sum(J.filter(x => x.typ === 'lv'), x => x.s);
+      const pPat = sum(VP, partPatron), gLv = sum(VP, commission), mExp = sum(VP.filter(c => c.payeur === 'dest'), c => +c.valeur || 0), rLv = sum(S.livreurs.filter(l => !f.lv || l.id === f.lv), l => Math.max(0, solde(l.id).reste)), rExp = sum(aRenvoyer().filter(c => !f.lv || c.livreurId === f.lv), c => c.valeur);
+      const ligne = (t, m, cl) => `<div class="row sb cl ${cl || ''}"><span>${t}</span><b>${F(m)}</b></div>`;
+      $('#cCompta').innerHTML = `<h3 class="sec">📒 Comptabilité de la période</h3><div class="compta">
+        <div class="card"><h4>💵 Mouvements d'argent</h4>${ligne('Entrées : paiements reçus', tE, 'plus')}${ligne('Sorties : marchandise renvoyée', tRenv, 'moins')}${ligne("Sorties : frais d'envoi", tFr, 'moins')}${ligne('Sorties : payé aux livreurs', tLv, 'moins')}${ligne('= Solde de caisse', tE - tRenv - tFr - tLv, 'total')}</div>
+        <div class="card"><h4>🧮 À qui appartient l'argent reçu</h4>${ligne('👑 Part du patron (frais + retraits − frais d\'envoi)', pPat, 'plus')}${ligne('🛵 Gains des livreurs', gLv)}${ligne('💼 Marchandise des expéditeurs', mExp)}</div>
+        <div class="card"><h4>⏳ Reste à payer (aujourd'hui)</h4>${ligne('Aux livreurs (leurs gains non payés)', rLv, rLv ? 'moins' : '')}${ligne('Aux expéditeurs (marchandise à renvoyer)', rExp, rExp ? 'moins' : '')}</div></div>`;
+      $('#cJour').innerHTML = `<h3 class="sec">📜 Journal de caisse (${J.length} opération${J.length > 1 ? 's' : ''})</h3>` + (J.length ? `<div class="scroll"><table class="cHist"><tr><th>Date</th><th>Opération</th><th class="n">Entrée</th><th class="n">Sortie</th><th class="n">Solde</th></tr>
+        ${J.slice().reverse().slice(0, 300).map(x => `<tr><td>${new Date(x.t).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})}<br><span class="note">${H(x.t)}</span></td><td><b>${esc(x.op)}</b>${x.det ? '<br><span class="note">' + esc(x.det) + '</span>' : ''}</td><td class="n plusT">${x.e ? F(x.e) : ''}</td><td class="n moinsT">${x.s ? F(x.s) : ''}</td><td class="n"><b>${F(x.solde)}</b></td></tr>`).join('')}
+        <tr class="tot"><td colspan="2">Total</td><td class="n">${F(tE)}</td><td class="n">${F(tRenv + tFr + tLv)}</td><td class="n">${F(tE - tRenv - tFr - tLv)}</td></tr></table></div>` : '<p class="note">Aucune entrée ni sortie d\'argent sur cette période.</p>');
+      S.cCompta = `\n\nCOMPTABILITÉ\nEntrées (paiements reçus) : ${F(tE)}\nMarchandise renvoyée : ${F(tRenv)}\nFrais d'envoi : ${F(tFr)}\nPayé aux livreurs : ${F(tLv)}\nSolde de caisse : ${F(tE - tRenv - tFr - tLv)}\n\nPart du patron : ${F(pPat)}\nGains des livreurs : ${F(gLv)}\nMarchandise des expéditeurs : ${F(mExp)}\n\nReste à payer aux livreurs : ${F(rLv)}\nReste à renvoyer aux expéditeurs : ${F(rExp)}`;
       // tableau croisé par livreur
       const g = {}; P.filter(c => c.livreurId).forEach(c => { const x = g[c.livreurId] = g[c.livreurId] || {nom:c.livreurNom || '—', n:0, att:0, recu:0, aval:0, com:0, ann:0};
         if(c.statut === 'annulee'){ x.ann++; return; } if(c.statut !== 'livree') return;
-        x.n++; x.att += du(c); x.com += commission(c); if(c.encValide) x.recu += +c.encRecu || 0; else if(etatCaisse(c) !== 'ancien') x.aval += du(c); });
+        x.n++; x.att += du(c); x.com += commission(c); x.pp = (x.pp || 0) + (c.encValide ? partPatron(c) : 0); x.tx = tauxDe(c.livreurId); if(c.encValide) x.recu += +c.encRecu || 0; else if(etatCaisse(c) !== 'ancien') x.aval += du(c); });
       const tri = f.tri || 'n', rows = Object.values(g).sort((p, q) => tri === 'r' ? q.recu - p.recu : tri === 'v' ? q.aval - p.aval : q.n - p.n), med = ['🥇','🥈','🥉'], avecC = S.p.part || S.p.fixe;
       $('#cPiv').innerHTML = `<h3 class="sec">📊 Tableau croisé par livreur</h3><div class="row"><span class="note">Classer par :</span><button class="btn s ${tri === 'n' ? 'jaune' : ''}" data-a="cTri" data-id="n">Livraisons</button><button class="btn s ${tri === 'r' ? 'jaune' : ''}" data-a="cTri" data-id="r">Argent reçu</button><button class="btn s ${tri === 'v' ? 'jaune' : ''}" data-a="cTri" data-id="v">Reste à valider</button></div>`
         + (rows.length ? rows.map((x, i) => `<div class="piv"><div class="row sb" style="margin:0"><span><span class="rang">${med[i] || '#' + (i + 1)}</span> <b>${esc(x.nom)}</b></span><span class="badge">${x.n} livraison${x.n > 1 ? 's' : ''}</span></div>
             <div class="pivG"><div><small>Attendu</small><b>${F(x.att)}</b></div><div class="v"><small>Reçu</small><b>${F(x.recu)}</b></div><div class="${x.aval ? 'a' : ''}"><small>À valider</small><b>${F(x.aval)}</b></div>
-            ${avecC ? `<div><small>Commission</small><b>${F(x.com)}</b></div>` : ''}<div><small>Annulées</small><b>${x.ann}</b></div></div></div>`).join('')
+            <div><small>Gains livreur (${x.tx} %)</small><b>${F(x.com)}</b></div><div><small>Part patron</small><b>${F(x.pp || 0)}</b></div><div><small>Annulées</small><b>${x.ann}</b></div></div></div>`).join('')
           + `<div class="piv tot2"><div class="row sb" style="margin:0"><b>Total</b><span class="badge vert">${sum(rows, x => x.n)} livraisons</span></div><div class="pivG"><div><small>Attendu</small><b>${F(sum(rows, x => x.att))}</b></div><div class="v"><small>Reçu</small><b>${F(sum(rows, x => x.recu))}</b></div><div class="${sum(rows, x => x.aval) ? 'a' : ''}"><small>À valider</small><b>${F(sum(rows, x => x.aval))}</b></div></div></div>`
           : '<p class="note">Aucune course sur cette période.</p>');
       // inventaire
@@ -1433,10 +1520,11 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       const lv = P.filter(c => c.statut === 'livree'), sous = ['valide','avalider','nonrecu','ancien'].map(k => { const xs = lv.filter(c => etatCaisse(c) === k); return [ETATS[k][0], xs.length, k === 'valide' ? sum(xs, c => c.encRecu) : sum(xs, du)]; });
       $('#cInv').innerHTML = `<h3 class="sec">🗂️ Inventaire de la période</h3><div class="scroll"><table><tr><th>Commandes</th><th class="n">Nombre</th><th class="n">Montant</th></tr>
         ${inv.map(([t, n, m]) => `<tr><td>${t}</td><td class="n">${n}</td><td class="n">${F(m)}</td></tr>`).join('')}<tr class="tot"><td>Total commandes</td><td class="n">${P.length}</td><td class="n">${F(sum(P.filter(c => c.statut !== 'annulee'), du))}</td></tr>
-        <tr><td colspan="3"><b>Détail des livrées</b></td></tr>${sous.map(([t, n, m]) => `<tr><td>&nbsp;&nbsp;${t}</td><td class="n">${n}</td><td class="n">${F(m)}</td></tr>`).join('')}</table></div>
+        <tr><td colspan="3"><b>Détail des livrées</b></td></tr>${sous.map(([t, n, m]) => `<tr><td>&nbsp;&nbsp;${t}</td><td class="n">${n}</td><td class="n">${F(m)}</td></tr>`).join('')}
+        <tr><td colspan="3"><b>Marchandise des expéditeurs</b></td></tr>${[['✅ Renvoyée', lv.filter(c => c.renvoye)], ['💼 À renvoyer', lv.filter(c => c.encValide && +c.valeur > 0 && c.payeur === 'dest' && !c.renvoye)]].map(([t, xs]) => `<tr><td>&nbsp;&nbsp;${t}</td><td class="n">${xs.length}</td><td class="n">${F(sum(xs, c => c.valeur))}</td></tr>`).join('')}</table></div>
         <button class="btn plein" data-a="cPartager">📤 Envoyer ce bilan par WhatsApp</button>`;
       S.cTxt = `Caisse ${S.p.entreprise} du ${D(a)} au ${D(b - 1)}\n` + inv.map(([t, n, m]) => `${t} : ${n} (${F(m)})`).join('\n') + '\n\nLivrées :\n' + sous.map(([t, n, m]) => `${t} : ${n} (${F(m)})`).join('\n')
-        + '\n\nPar livreur :\n' + rows.map((x, i) => `${i + 1}. ${x.nom} : ${x.n} livraisons, reçu ${F(x.recu)}, à valider ${F(x.aval)}`).join('\n');
+        + '\n\nPar livreur :\n' + rows.map((x, i) => `${i + 1}. ${x.nom} : ${x.n} livraisons, reçu ${F(x.recu)}, gains livreur ${F(x.com)}, part patron ${F(x.pp || 0)}, à valider ${F(x.aval)}`).join('\n') + (S.cCompta || '');
       // versements groupés (ancien système, facultatif)
       const vs = S.versements.filter(v => v.sens === 'paie').sort((p, q) => q.date - p.date).slice(0, 30);
       $('#cVers').innerHTML = `<details class="card"><summary><b>💵 Paiement des livreurs (leurs gains)</b></summary><p class="note">Les clients vous paient par Mobile Money : c'est vous qui payez à chaque livreur sa commission. Reste à payer = ses gains − ce que vous lui avez déjà payé.</p>
@@ -1467,10 +1555,9 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       <label>Nom de l'entreprise<input name="entreprise" required value="${esc(S.p.entreprise)}"></label>
       <label>Téléphone de l'entreprise (affiché aux clients)<input name="tel" type="tel" value="${esc(S.p.tel)}"></label>
       <label>Nouveau code patron (6 chiffres ou plus) — laissez vide pour garder l'actuel<input name="pinNouveau" type="password" inputmode="numeric" pattern="[0-9]{6,}" autocomplete="new-password"></label>
-      <fieldset class="sec s-pay"><legend>💰 Commission du livreur</legend>
-      <label>Pourcentage des frais de livraison (%)<input name="part" type="number" min="0" max="100" value="${+S.p.part || 0}"></label>
-      <label>Et/ou montant fixe par course livrée (F CFA)<input name="fixe" type="number" min="0" value="${+S.p.fixe || 0}"></label>
-      <p class="note">Mettez 0 et 0 si vos livreurs sont salariés.</p></fieldset>
+      <fieldset class="sec s-pay"><legend>💰 Partage des frais de livraison</legend>
+      <p class="note">Sur les frais de chaque livraison, le livreur reçoit son pourcentage et le patron le reste (+ les frais de retrait Mobile Money). <b>Le pourcentage se règle livreur par livreur</b>, dans l'onglet 🛵 Livreurs → Modifier.</p>
+      <label>Pourcentage proposé pour un nouveau livreur (%)<input name="part" type="number" min="0" max="100" value="${+S.p.part || 0}"></label></fieldset>
       <label>Types de colis proposés aux clients (un par ligne)<textarea name="typesColis" rows="7">${esc(S.p.typesColis.join('\n'))}</textarea></label>
       <fieldset class="sec s-colis"><legend>📏 Calcul du prix de livraison</legend>
       <label>Mode de calcul<select name="tarifMode"><option value="zone" ${!modeKm() && S.p.tarifMode !== 'fixe' ? 'selected' : ''}>Par zone (tarifs de la liste des zones)</option><option value="km" ${modeKm() ? 'selected' : ''}>Selon la distance réelle récupération → livraison</option><option value="fixe" ${S.p.tarifMode === 'fixe' ? 'selected' : ''}>Prix unique que j'écris moi-même</option></select></label>
@@ -1487,7 +1574,9 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       <p class="note">Les clients paient <b>l'entreprise</b>, jamais le livreur en espèces. Ces numéros apparaissent dans le message WhatsApp du receveur et sur le suivi du colis. Laissez vide un réseau que vous n'utilisez pas.</p>
       <label>MTN MoMo<input name="momoMtn" type="tel" value="${esc(momoN().mtn)}" placeholder="Vide : tapez le numéro MTN"></label>
       <label>Moov Money<input name="momoMoov" type="tel" value="${esc(momoN().moov)}" placeholder="Vide : tapez le numéro Moov"></label>
-      <label>Celtiis Cash<input name="momoCeltiis" type="tel" value="${esc(momoN().celtiis)}" placeholder="Vide : tapez le numéro Celtiis"></label></fieldset>
+      <label>Celtiis Cash<input name="momoCeltiis" type="tel" value="${esc(momoN().celtiis)}" placeholder="Vide : tapez le numéro Celtiis"></label>
+      <p class="soustitre">Frais de retrait de chaque réseau</p><p class="note">Ils s'ajoutent à ce que paie le client et reviennent au patron (c'est lui qui retire l'argent). Une ligne par tranche : <b>jusqu'à MONTANT = FRAIS</b>. Exemple :<br>5000 = 100<br>20000 = 250<br>50000 = 500. Laissez vide s'il n'y a pas de frais.</p>
+      ${RESEAUX.map(r => `<label>Frais de retrait ${r[2]}<textarea name="frais_${r[0]}" rows="4" placeholder="5000 = 100&#10;20000 = 250">${esc(S.p['frais_' + r[0]] || '')}</textarea></label>`).join('')}</fieldset>
       <fieldset class="sec s-reco"><legend>🔔 Rappels et relances</legend>
       <label>Rappeler le livreur (et prévenir le patron) toutes les<select name="rappelMin">${[5,10,15,20].map(n => `<option value="${n}" ${(+S.p.rappelMin || 10) === n ? 'selected' : ''}>${n} minutes</option>`).join('')}</select></label>
       <p class="note">Tant que le colis n'est pas récupéré, le livreur est rappelé (sonnerie + ntfy). Dès le 2ᵉ rappel, le patron est prévenu. Les demandes que personne n'accepte sont aussi rappelées à tous.</p>
@@ -1520,7 +1609,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
       const zones = d.zones.split('\n').map(x => x.split('=')).filter(x => x.length === 2 && x[0].trim()).map(([n,p]) => ({n:n.trim(), p:+num(p) || 0}));
       if(!zones.length) return toast('Ajoutez au moins une zone');
       if(d.pinNouveau){ await creerClePatron(d.pinNouveau.trim()); toast('🔒 Nouveau code patron enregistré'); }
-      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, prixFixe:+d.prixFixe || 0, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momoMtn:(d.momoMtn || '').trim(), momoMoov:(d.momoMoov || '').trim(), momoCeltiis:(d.momoCeltiis || '').trim(), momo:(d.momoMtn || '').trim(), relanceJours:+d.relanceJours || 14, rappelMin:+d.rappelMin || 10, ntfyActif:!!d.ntfyActif, ecranAllume:!!d.ecranAllume, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
+      await DB.set('params', 'general', {entreprise:d.entreprise.trim(), tel:d.tel.trim(), part:+d.part || 0, fixe:+d.fixe || 0, tarifMode:d.tarifMode, prixFixe:+d.prixFixe || 0, base:+d.base || 0, parKm:+d.parKm || 0, minimum:+d.minimum || 0, fidelite:+d.fidelite || 0, masquer:!!d.masquer, momoMtn:(d.momoMtn || '').trim(), momoMoov:(d.momoMoov || '').trim(), momoCeltiis:(d.momoCeltiis || '').trim(), momo:(d.momoMtn || '').trim(), frais_mtn:(d.frais_mtn || '').trim(), frais_moov:(d.frais_moov || '').trim(), frais_celtiis:(d.frais_celtiis || '').trim(), relanceJours:+d.relanceJours || 14, rappelMin:+d.rappelMin || 10, ntfyActif:!!d.ntfyActif, ecranAllume:!!d.ecranAllume, zones, typesColis:d.typesColis.split('\n').map(x => x.trim()).filter(Boolean)}); toast('Réglages enregistrés'); }; }}
   }[tab];
   show(T + `<div class="vue t-${tab}">` + V.h + '</div>', V); }
 
@@ -1629,17 +1718,41 @@ const ACT = {
       <p><b>Prévenez maintenant le receveur</b> (${esc(c.destTel || 'numéro manquant')}) : un message tout prêt s'ouvre dans WhatsApp, il suffit d'appuyer sur Envoyer.</p>
       ${c.destTel ? `<a class="btn vert plein" href="${wa(c.destTel, txt)}">📲 Prévenir le receveur par WhatsApp</a>` : ''}<button class="btn plein" data-a="fermer">Plus tard</button>`); },
   encOk(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return;
-    const m = momoN(), res = [m.mtn && 'MTN MoMo', m.moov && 'Moov Money', m.celtiis && 'Celtiis Cash'].filter(Boolean).concat(['Autre']);
-    modal(`<h2>✅ Mobile Money reçu : ${esc(c.code)}</h2><p>À recevoir : <b>${F(du(c))}</b></p>
-      <form id="fm" class="form"><label>Montant réellement arrivé sur votre compte (F CFA)<input id="mt" type="number" min="0" inputmode="numeric" required value="${du(c)}"></label>
-      <label>Sur quel réseau ?<select id="md">${res.map(x => `<option>${x}</option>`).join('')}</select></label>
+    const m = momoN(), res = RESEAUX.filter(r => m[r[0]]).map(r => r[2]).concat(['Autre']), mt0 = r => du(c) + fraisRetrait(resKey(r), du(c));
+    modal(`<h2>✅ Mobile Money reçu : ${esc(c.code)}</h2><p>À recevoir : <b>${F(du(c))}</b>${+c.valeur ? ` (dont marchandise ${F(c.valeur)} à renvoyer à l'expéditeur)` : ''}</p>
+      <form id="fm" class="form"><label>Sur quel réseau ?<select id="md">${res.map(x => `<option>${x}</option>`).join('')}</select></label>
+      <label>Montant réellement arrivé sur votre compte (F CFA)<input id="mt" type="number" min="0" inputmode="numeric" required value="${mt0(res[0])}"></label>
+      <p class="note" id="mtDet"></p>
       <label>Référence de la transaction (facultatif)<input id="ref" placeholder="Ex. ID du SMS de confirmation"></label>
       <label>Note (facultatif)<input id="nt" placeholder="Ex. payé en 2 fois"></label>
       <button class="btn vert plein">Valider : l'argent entre dans la caisse</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
+      const det = () => { const mt = +$('#mt').value || 0, fr = Math.max(0, mt - du(c)), com = Math.round((+c.frais || 0) * tauxDe(c.livreurId) / 100);
+        $('#mtDet').innerHTML = `Livraison ${F(c.frais)} → livreur ${tauxDe(c.livreurId)} % : <b>${F(com)}</b> · patron : <b>${F((+c.frais || 0) - com + fr)}</b>${fr ? ` (dont ${F(fr)} de frais de retrait)` : ''}${+c.valeur ? `<br>💼 Marchandise à renvoyer à l'expéditeur : <b>${F(c.valeur)}</b>` : ''}`; };
+      $('#md').onchange = () => { $('#mt').value = mt0($('#md').value); det(); }; $('#mt').oninput = det; det();
       $('#fm').onsubmit = async ev => { ev.preventDefault(); const mt = +$('#mt').value || 0;
-        const v = {encValide:true, encValideLe:Date.now(), encRecu:mt, encMode:$('#md').value, encRef:$('#ref').value.trim(), encNote:$('#nt').value.trim(), encLitige:false};
+        const v = {encValide:true, encValideLe:Date.now(), encRecu:mt, tauxLv:tauxDe(c.livreurId), encMode:$('#md').value, encRef:$('#ref').value.trim(), encNote:$('#nt').value.trim(), encLitige:false};
         try { await DB.set('livraisons', id, v); } catch(er){ return alarme('Validation impossible', 'Vérifiez votre connexion puis réessayez. (' + (er && er.message || er) + ')'); }
         quittanceModal({...c, ...v}); if(mt < du(c)) toast(`⚠️ Attention : ${F(du(c) - mt)} de moins que prévu.`); }; }); },
+  renvoyer(id){ const c = S.livraisons.find(x => x.id === id); if(!c) return; const rk = c.expReseau || 'mtn';
+    modal(`<h2>💼 Renvoi à l'expéditeur : ${esc(c.code)}</h2><p>Envoyez <b>${F(c.valeur)}</b> à <b>${esc(net(c.clientNom))}</b>${c.expMomo ? ` sur ${esc((RESEAUX.find(r => r[0] === rk) || [,, ''])[2])} <b>${esc(c.expMomo)}</b>` : ''}.</p>
+      <form id="fm" class="form"><label>Frais d'envoi payés par vous (F CFA)<input id="rf" type="number" min="0" inputmode="numeric" value="0"></label>
+      <label>Référence de la transaction (facultatif)<input id="rr"></label>
+      <button class="btn vert plein">✅ C'est renvoyé</button><button type="button" class="btn plein" data-a="fermer">Retour</button></form>`, () => {
+      $('#fm').onsubmit = async ev => { ev.preventDefault(); const v = {renvoye:true, renvoyeLe:Date.now(), renvoiFrais:+$('#rf').value || 0, renvoiRef:$('#rr').value.trim()};
+        try { await DB.set('livraisons', id, v); } catch(er){ return alarme('Enregistrement impossible', 'Vérifiez votre connexion puis réessayez.'); }
+        const ent = net(S.p.entreprise), txt = [`Bonjour ${net(c.clientNom)},`, '', `${ent} vous a envoyé ${F(c.valeur)} par Mobile Money${c.expMomo ? ' (' + c.expMomo + ')' : ''} : paiement de votre marchandise, commande ${c.code}${net(c.colis) ? ' (' + net(c.colis) + ')' : ''}, livrée à ${net(c.destNom) || 'votre destinataire'} le ${D(c.livreeLe)}.`, v.renvoiRef ? `Référence : ${v.renvoiRef}` : '', '', `Merci de votre confiance ! ${ent}${S.p.tel ? ' · ' + net(S.p.tel) : ''}`].filter((x, i, A) => x !== '' || A[i - 1] !== '').join('\n');
+        modal(`<h2>✅ Renvoi enregistré</h2><p>${F(c.valeur)} renvoyés à ${esc(net(c.clientNom))}${v.renvoiFrais ? ` · frais d'envoi ${F(v.renvoiFrais)} retirés de votre part` : ''}.</p><pre class="quitTxt">${esc(txt)}</pre>
+          ${c.clientTel ? `<a class="btn vert plein" href="${wa(c.clientTel, txt)}">📲 Prévenir l'expéditeur par WhatsApp</a>` : ''}<button class="btn plein" data-a="fermer">Terminer</button>`); }; }); },
+  bilPer(k){ S.bilP = k; VUE.refresh && VUE.refresh(); if(S.lv) livreurApp(S.lv, 'bil'); },
+  badges(cat){ const L = badgeItems()[cat] || [], nom = {client:'🛒 Client', livreur:'🛵 Livreur', patron:'👑 Patron'}[cat];
+    modal(`<h2>${nom} : ${L.length} nouveauté${L.length > 1 ? 's' : ''}</h2>${L.length ? '<p class="note">Touchez une ligne pour la consulter : le chiffre baisse.</p>' : '<p class="vide">Rien de nouveau. 👍</p>'}
+      <div class="bList">${L.map(x => `<button class="bItem" data-a="badgeVoir" data-id="${cat}|${esc(x.k)}"><b>${esc(x.titre)}</b><small>${esc(x.sous || '')}</small><span class="note">${D(x.t)} ${H(x.t)}</span></button>`).join('')}</div>
+      ${L.length > 1 ? `<button class="btn s plein" data-a="badgeTout" data-id="${cat}">✓ Tout marquer comme vu</button>` : ''}<button class="btn plein" data-a="fermer">Fermer</button>`, () => {}); },
+  badgeVoir(v){ const i = v.indexOf('|'), cat = v.slice(0, i), k = v.slice(i + 1), x = (badgeItems()[cat] || []).find(y => y.k === k); marquerVu(k); majBadges();
+    if(!x) return ACT.badges(cat); const c = x.id && S.livraisons.find(y => y.id === x.id);
+    modal(`<h2>${esc(x.titre)}</h2>${x.extra ? `<p class="lienTxt">${esc(x.extra)}</p>` : ''}${c ? carteLivraison(c, true) : ''}
+      <button class="btn jaune plein" data-a="badges" data-id="${cat}">← Retour à la liste</button><button class="btn plein" data-a="fermer">Fermer</button>`); },
+  badgeTout(cat){ marquerVu((badgeItems()[cat] || []).map(x => x.k)); majBadges(); fermer(); toast('✓ Tout est marqué comme vu'); },
   quitCopier(v){ const [id, q] = String(v).split('|'), c = S.livraisons.find(x => x.id === id); if(c) copier(quittance(c, q), '✅ Quittance copiée'); },
   quitRevoir(id){ const c = S.livraisons.find(x => x.id === id); if(c && c.encValide) quittanceModal(c); },
   async encNon(id){ await DB.set('livraisons', id, {encLitige:true, encLitigeLe:Date.now()}); toast('Marqué « pas encore reçu » : la commande reste à valider'); },
@@ -1750,7 +1863,9 @@ const ACT = {
       <label>Rechercher le lieu de livraison<input id="pq2" type="search" autocomplete="off"></label><div id="pr2" class="res"></div>
       <label>Adresse de livraison<input name="dest" required></label><label>Nom du destinataire<input name="dNom"></label><label>Téléphone du destinataire<input name="dTel" type="tel"></label>
       ${typeColisChamp()}${colisChamp()}${delaiChamp()}
-      <fieldset class="sec s-pay"><legend>💰 Qui paie la livraison ?</legend><div class="choix"><label><input type="radio" name="payeur" value="client" checked>L'expéditeur</label><label><input type="radio" name="payeur" value="dest">Le receveur</label></div></fieldset><label>Valeur de la marchandise, payée par le receveur (0 si rien)<input name="val" type="number" min="0" value="0"></label>
+      <fieldset class="sec s-pay"><legend>💰 Qui paie la livraison ?</legend><div class="choix"><label><input type="radio" name="payeur" value="client" checked>L'expéditeur</label><label><input type="radio" name="payeur" value="dest">Le receveur</label></div>
+      <div id="pValBox" hidden><label>Valeur de la marchandise, payée par le receveur (0 si rien)<input name="val" type="number" min="0" value="0" inputmode="numeric"></label>
+        <div id="pExpBox" hidden><p class="note">💼 Vous renverrez l'argent de la marchandise à l'expéditeur sur ce numéro :</p><div class="row2"><label>Mobile Money de l'expéditeur<input name="expMomo" type="tel"></label><label>Réseau<select name="expReseau">${RESEAUX.map(r => `<option value="${r[0]}">${r[2]}</option>`).join('')}</select></label></div></div></div></fieldset>
       <div id="pPrix" class="prixBloc att">📍 Le prix s'affichera quand le lieu de récupération et le lieu de livraison seront choisis.</div>
       <div id="pPrixC" hidden><label id="pZone">Zone de livraison (trouvée d'après le lieu, corrigez si besoin)<select name="zone"><option value="">— Choisissez la zone —</option>${zoneOpts()}<option value="__autre">✏️ Autre prix (je l'écris)</option></select></label>
       <label>Frais de livraison (vous pouvez écrire le prix que vous voulez)<input name="frais" type="number" min="0" inputmode="numeric"></label></div>
@@ -1766,7 +1881,10 @@ const ACT = {
           : v === '' ? (f.zone.value === '__autre' ? '✏️ Écrivez le prix de la livraison ci-dessous.' : '👇 Choisissez la zone de livraison, ou « ✏️ Autre prix » pour écrire le vôtre.') : `<small>Prix de la livraison</small><b>${F(+v)}</b><span>${manuel || f.zone.value === '__autre' ? 'Prix écrit par vous' : modeFixe() ? 'Prix unique' : modeKm() && distP != null ? 'Distance ' + kmT(distP) : f.zone.value ? 'Zone ' + esc(f.zone.value) : ''}</span>`; };
       const upd = async () => { if(pret() && !manuel){ if(modeFixe()) f.frais.value = +S.p.prixFixe; else if(modeKm()){ distP = await distanceKm(dep, dst); f.frais.value = prixKm(distP); } else if(f.zone.value === '__autre'){ f.frais.value = ''; manuel = true; setTimeout(() => f.frais.focus(), 50); } else f.frais.value = f.zone.value ? prix(f.zone.value) : '';
           if(estOfferte(f.tel.value) && f.frais.value !== ''){ f.frais.value = 0; toast('🎁 Livraison offerte (fidélité)'); } } aff(); };
-      f.zone.onchange = () => { manuel = false; upd(); };   /* « Autre prix » : le patron écrit le montant */ f.tel.onchange = upd; f.rep.addEventListener('input', upd);
+      f.zone.onchange = () => { manuel = false; upd(); };   /* « Autre prix » : le patron écrit le montant */
+      const majPay = () => { const dest = (f.querySelector('[name=payeur]:checked') || {}).value === 'dest'; $('#pValBox').hidden = !dest; if(!dest) f.val.value = 0;
+        $('#pExpBox').hidden = !(dest && +f.val.value > 0); f.expMomo.required = dest && +f.val.value > 0; };
+      f.querySelectorAll('[name=payeur]').forEach(r => r.addEventListener('change', majPay)); f.val.addEventListener('input', majPay); majPay(); f.tel.onchange = upd; f.rep.addEventListener('input', upd);
       f.dest.addEventListener('change', () => { if(!f.zone.value) zoneAuto(f.zone, f.dest.value); upd(); }); f.dest.addEventListener('input', aff); upd();
       chercher($('#pq1'), $('#pr1'), x => { dep = {lat:x.lat, lng:x.lng}; if(!f.rep.value) f.rep.value = x.court; toast('Lieu de récupération placé'); upd(); });
       chercher($('#pq2'), $('#pr2'), x => { dst = {lat:x.lat, lng:x.lng}; if(!f.dest.value) f.dest.value = x.court; zoneAuto(f.zone, x.adresse + ' ' + x.court); upd(); toast('Lieu de livraison placé'); });
@@ -1776,7 +1894,7 @@ const ACT = {
         const livrerLe = lireLivrerLe(f); if(livrerLe === null || (livrerLe && livrerLe <= lim)) return toast('La date de livraison doit être après la récupération');
         const d = Object.fromEntries(new FormData(f)), l = S.livreurs.find(x => x.id === d.lv);
         const nouvC = {code:codeCmd(), clientUid:DB.uid(), clientTelCle:telCle(d.tel), codeExige:true, clientNom:d.nom, clientTel:d.tel, depart:dep, departTxt:d.rep, zone:d.zone === '__autre' ? '' : d.zone, dest:d.dest, destPos:dst, destNom:d.dNom, destTel:d.dTel,
-          colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:+d.val || 0, frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, livrerLe:livrerLe || 0, creeLe:Date.now(), source:'patron',
+          colis:nomColis(f), ...lireColis(f), payeur:d.payeur, valeur:d.payeur === 'dest' ? +d.val || 0 : 0, expMomo:d.payeur === 'dest' && +d.val ? (d.expMomo || '').trim() : '', expReseau:d.payeur === 'dest' && +d.val ? d.expReseau : '', frais:+d.frais || 0, distanceKm:distP, offerte:+d.frais === 0 && estOfferte(d.tel), limiteRecup:lim, livrerLe:livrerLe || 0, creeLe:Date.now(), source:'patron',
           ...(l ? {statut:'acceptee', livreurId:l.id, livreurNom:l.nom, livreurTel:l.tel || '', accepteeLe:Date.now(), attribPar:'patron'} : {statut:'attente'})};
         const nid = await DB.add('livraisons', nouvC);
         const res = resumeCmd({departTxt:d.rep, zone:d.zone === '__autre' ? '' : d.zone, frais:+d.frais || 0, limiteRecup:lim, livrerLe});
@@ -1793,6 +1911,8 @@ const ACT = {
         <p class="note">Photographiez le visage du livreur, de face et bien éclairé. Le client verra cette photo quand ce livreur prendra sa course.</p></div>
       <label>Nom<input name="nom" required value="${esc(l.nom)}"></label>
       <label>Téléphone<input name="tel" type="tel" required value="${esc(l.tel)}"></label>
+      <div class="tauxBox"><label>Part du livreur sur les frais de livraison (%)<input name="taux" type="number" min="0" max="100" required inputmode="numeric" value="${l.taux != null && l.taux !== '' ? +l.taux : +S.p.part || 0}" oninput="this.form.querySelector('.tauxP').textContent = Math.max(0, 100 - (+this.value || 0)) + ' %'"></label>
+        <p class="note">Patron : <b class="tauxP">${100 - (l.taux != null && l.taux !== '' ? +l.taux : +S.p.part || 0)} %</b> des frais (+ les frais de retrait). Seul le patron peut changer ce pourcentage.</p></div>
       ${id ? '<label>Nouveau code PIN (4 chiffres) — laissez vide pour garder l\'actuel<input name="pin" inputmode="numeric" pattern="[0-9]{4}" autocomplete="off"></label>'
         : `<label>Code PIN (4 chiffres)<input name="pin" inputmode="numeric" required pattern="[0-9]{4}" autocomplete="off" value="${codeAleatoire()}"></label>`}
       <p class="note">🔒 Le code est chiffré : personne ne pourra le relire, même vous. Notez-le et donnez-le au livreur.</p>
@@ -1800,7 +1920,7 @@ const ACT = {
       const f = $('#fm'); let photo = l.photo || '';
       $('#phIn').onchange = async ev => { const fi = ev.target.files[0]; if(!fi) return; $('#phPrev').innerHTML = '<span>Préparation…</span>';
         try { photo = await reduirePhoto(fi); $('#phPrev').innerHTML = `<img src="${photo}" alt="">`; } catch(er){ $('#phPrev').innerHTML = '<span>Photo illisible, recommencez</span>'; } };
-      f.onsubmit = async ev => { ev.preventDefault(); const pin = f.pin.value.trim(), d = {nom:f.nom.value.trim(), tel:f.tel.value.trim(), photo, pin:null};
+      f.onsubmit = async ev => { ev.preventDefault(); const pin = f.pin.value.trim(), d = {nom:f.nom.value.trim(), tel:f.tel.value.trim(), photo, pin:null, taux:Math.min(100, Math.max(0, +f.taux.value || 0))};
         let lid = id; if(id) await DB.set('livreurs', id, d); else lid = await DB.add('livreurs', {...d, actif:true, creeLe:Date.now()});
         if(pin) await definirPinLivreur(lid, pin);
         if(pin) modal(`<h2>Livreur enregistré ✓</h2><p>Code PIN de <b>${esc(d.nom)}</b> : <span class="codeBig">${pin}</span></p><p class="note">Notez-le maintenant : il ne sera plus jamais affiché.</p><button class="btn plein" data-a="fermer">J'ai noté</button>`);
