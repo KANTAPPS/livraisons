@@ -6,6 +6,10 @@
 <title>e-COURSE</title>
 <meta name="theme-color" content="#0f172a">
 <link rel="manifest" href="manifest.json">
+<script>(function(){ /* application « e-COURSE Livreur » : ouverte par ?app=livreur (application installée) ou par le lien #livreur */
+  var lv = /[?&]app=livreur/.test(location.search) || location.hash === '#livreur', cl = /[?&]app=client/.test(location.search) || location.hash === '#client', m = document.querySelector('link[rel=manifest]');
+  if(lv){ try { sessionStorage.setItem('lienLv', '1'); } catch(e) {} if(m) m.href = 'manifest-livreur.json'; document.title = 'e-COURSE Livreur'; }
+  else if(cl){ try { sessionStorage.setItem('lienCl', '1'); } catch(e) {} if(m) m.href = 'manifest-client.json'; document.title = 'e-COURSE Client'; } })();</script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <!--
@@ -232,6 +236,9 @@ label.lvOpt,.form label.lvOpt{display:flex!important;flex-direction:row;align-it
 .opt>.pastille{position:absolute;top:-9px;right:-6px;z-index:2}.pastille.zero{background:#9ca3af}
 .logoBox{position:relative;display:inline-block}.pastilles{position:absolute;top:50%;right:-20px;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px}.pastilles .pastille{min-width:36px;height:36px;font-size:18px}
 .bList{display:flex;flex-direction:column;gap:8px;margin:8px 0}.bItem{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-left:5px solid #e11d1d;border-radius:12px;padding:10px 12px;font:inherit;color:inherit;cursor:pointer}.bItem small{color:var(--mut)}
+/* écrans d'installation */
+.deco{margin-top:14px;border-color:#94a3b8;color:#475569}.decoMini{display:block;margin-top:3px;background:none;border:1px solid var(--line);color:var(--mut);border-radius:99px;padding:3px 10px;font:inherit;font-size:12px;cursor:pointer}
+.choixApp{text-align:center}.choixApp .appIco{width:110px;height:110px;border-radius:24px;box-shadow:0 6px 18px rgba(0,0,0,.18);margin:8px auto 4px;display:block}.choixApp .btn.gros{font-size:18px;padding:16px}
 /* caisse */
 .compta{display:grid;gap:8px}.compta .card{margin:0}.compta h4{margin:0 0 6px}.cl{margin:4px 0;padding:4px 0;border-bottom:1px dashed var(--line)}.cl.plus b{color:#15803d}.cl.moins b{color:#b91c1c}.cl.total{border-bottom:0;border-top:2px solid var(--ink);font-size:17px}
 .plusT{color:#15803d}.moinsT{color:#b91c1c}
@@ -309,7 +316,7 @@ const CONFIG = {
 const DEF = {entreprise: CONFIG.entreprise, tel: '+229 0191023000', rappelMin: 10, ecranAllume: false, ntfyActif: true, ntfyCanal: '', ntfyServeur: 'https://ntfy.sh', tarifMode: 'zone', base: 500, parKm: 150, minimum: 700, fidelite: 0, masquer: true, momo: '', relanceJours: 14,
   typesColis: ['Repas / nourriture','Gâteau','Documents','Vêtements / pagnes','Téléphone / électronique','Médicaments','Carton / colis','Bouteille de gaz','Marchandises de boutique'], part: 0, fixe: 0,
   zones: [{n:'Cotonou centre',p:1000},{n:'Akpakpa',p:1000},{n:'Fidjrossè',p:1000},{n:'Godomey',p:1500},{n:'Abomey-Calavi',p:1500},{n:'Porto-Novo',p:2500},{n:'Ouidah',p:3000}]};
-const VERSION = '48';
+const VERSION = '50';
 /* Œil : voir / masquer ce qu'on tape dans les champs de code */
 function poserOeils(r) {
   var l = (r || document).querySelectorAll('input[type="password"]:not([data-oeil])');
@@ -434,11 +441,13 @@ if(location.protocol === 'file:') for(const r of ['icon']){ const l = document.c
 const bandeau = (t, c) => `<div class="bandeau ${c}"><img src="${ICONE}" alt=""><div><b>${esc(S.p.entreprise)}</b><span>${t}</span></div></div>${installee() ? '' : `<div class="pad" style="padding-bottom:0">${btnInstaller()}</div>`}`;
 // ----- installation comme vraie application -----
 let invite = null;
-const installee = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const installee = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || window.__testInstallee === true;
+const modeCl = () => { try { return /[?&]app=client/.test(location.search) || sessionStorage.getItem('lienCl') === '1'; } catch(e) { return false; } };
 if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); invite = e; document.querySelectorAll('.btnInst').forEach(b => b.hidden = false); });
-addEventListener('appinstalled', () => { invite = null; document.querySelectorAll('.btnInst').forEach(b => b.hidden = true); toast('✅ ' + S.p.entreprise + ' est installée sur votre téléphone'); });
-const btnInstaller = () => installee() ? '' : `<button class="btn plein btnInst instal" data-a="installer" ${invite || iPhone() ? '' : 'hidden'}>📲 Installer l'application ${esc(S.p.entreprise)}</button>`;
+addEventListener('appinstalled', () => { invite = null; document.querySelectorAll('.btnInst').forEach(b => b.hidden = true);
+  if(modeLv() || modeCl()) alarme('✅ Application installée', `Ouvrez maintenant « ${S.p.entreprise} ${modeLv() ? 'Livreur' : 'Client'} » depuis l'écran d'accueil de votre téléphone.`); toast('✅ ' + S.p.entreprise + ' est installée sur votre téléphone'); });
+const btnInstaller = () => installee() ? '' : `<button class="btn plein btnInst instal" data-a="installer" ${invite || iPhone() ? '' : 'hidden'}>📲 Installer l'application ${esc(S.p.entreprise)}${modeLv() ? ' Livreur' : modeCl() ? ' Client' : ''}</button>`;
 const STATUTS = {attente:'En attente', acceptee:'Livreur trouvé', recuperee:'Colis récupéré', livree:'Livré', annulee:'Annulé'};
 const S = {bloques:[], livraisons:[], livreurs:[], positions:[], versements:[], params:[], plaintes:[], lieux:[], messages:[], alertes:[], p:{...DEF}, ok:{}, svc:false, moi:null};
 let VUE = {}, DB;
@@ -750,7 +759,7 @@ function suivreDB(){ for(const k of ['add','set','del','prendre','reserver']){ c
 function toast(m){ const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 3200); }
 function modal(h, init){ $('#modalBox').innerHTML = h; $('#modal').hidden = false; init && init(); }
 function fermer(){ $('#modal').hidden = true; arreterSonnerie(); }
-function show(h, o = {}){ VUE.quit && VUE.quit(); if(!(S.role === 'livreur' && S.svc)) sansAlerte('gps'); $('#app').innerHTML = h; VUE = o; $('#btnQuit').hidden = !S.role || (S.role === 'client' && ls.get('viaLien', 0) && !ls.get('patronIci', 0)); o.init && o.init(); o.refresh && o.refresh(); scrollTo(0,0); }
+function show(h, o = {}){ VUE.quit && VUE.quit(); if(!(S.role === 'livreur' && S.svc)) sansAlerte('gps'); $('#app').innerHTML = h; VUE = o; $('#btnQuit').hidden = !S.role || (S.role === 'client' && ls.get('viaLien', 0) && !patronConnecte()) || (['livreur','livreur-login'].includes(S.role) && modeLv() && !patronConnecte()); o.init && o.init(); o.refresh && o.refresh(); scrollTo(0,0); }
 const tabs = (list, cur) => `<nav class="tabs">${list.map(([k,t]) => `<button data-a="tab" data-id="${k}" class="t-${k} ${k===cur?'on':''}">${t}</button>`).join('')}</nav>`;
 
 // ---------- cartes ----------
@@ -958,6 +967,7 @@ function suivreColis(id, c){ abo('r:msg:' + id, () => DB.watch('livraisons/' + i
 const attendre = c => new Promise(ok => { const t0 = Date.now(), f = () => S.ok[c] || Date.now() - t0 > 6000 ? ok() : setTimeout(f, 150); f(); });
 
 // ---------- codes secrets (patron, livreurs) : jamais stockés en clair ----------
+const modeLv = () => { try { return /[?&]app=livreur/.test(location.search) || sessionStorage.getItem('lienLv') === '1'; } catch(e) { return false; } };   /* application livreur verrouillée */
 const patronConnecte = () => { try { return sessionStorage.getItem('pat') === '1'; } catch(e) { return false; } };
 /* ----- Espace fabricant (KANT) : règles Firebase + fichiers de l'application, protégé par e-mail + code secret -----
    Seule l'EMPREINTE est écrite ici (impossible d'en retrouver le code). Vide = accès pas encore créé. */
@@ -1047,7 +1057,15 @@ async function client(){ S.role = 'client'; ls.set('role', {r:'client'}); abonne
   const c = id && S.livraisons.find(x => x.id === id);
   if(c && (!['livree','annulee'].includes(c.statut) || Date.now() - (c.livreeLe || c.annuleeLe || 0) < 36e5
     || (c.statut === 'livree' && !c.avisClient && Date.now() - c.livreeLe < 864e5))) return suivi(id);
+  let choix = ''; try { choix = sessionStorage.getItem('clChoix') || ''; } catch(e) {}
+  if(modeCl() && !installee() && !choix && !patronConnecte()) return choixClient();
   commande(); }
+/* client venu par le lien : installer l'application avant de commander, ou commander tout de suite */
+function choixClient(){ show(`${bandeau('Bienvenue', 'o1c')}<div class="pad choixApp"><img class="appIco" src="icon-cli-192.png" alt="" onerror="this.src='${LOGO}'">
+  <h2>Envoyez vos colis avec ${esc(S.p.entreprise)}</h2><p>Installez l'application pour commander plus vite la prochaine fois et suivre vos colis d'un seul geste.</p>
+  <button class="btn jaune plein gros" data-a="installer">📲 Installer l'application (recommandé)</button>
+  <button class="btn plein" data-a="clSansInstaller">🛒 Commander sans installer</button>
+  <p class="note">Gratuit, sans compte ni mot de passe.</p></div>`); }
 // recherche de lieu (OpenStreetMap / Nominatim, limitée au Bénin)
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 // lieux connus de l'entreprise : chaque mot tapé doit se retrouver dans le nom
@@ -1143,7 +1161,7 @@ function commande(){ const me = ls.get('client', {}); let pos = null, destPos = 
       <div id="expMomoBox" class="dateBloc" hidden><p class="note">💼 ${esc(S.p.entreprise)} reçoit l'argent de la marchandise du receveur et vous le <b>renvoie</b> sur votre Mobile Money.</p>
         <div class="row2"><label>Votre numéro Mobile Money<input name="expMomo" type="tel" inputmode="tel"></label><label>Réseau<select name="expReseau">${RESEAUX.map(r => `<option value="${r[0]}">${r[2]}</option>`).join('')}</select></label></div></div></div>
     <p class="note" id="payInfo"></p></fieldset>
-    <button class="btn jaune plein">Appeler un livreur</button></form></div>`, {init(){
+    <button class="btn jaune plein">Appeler un livreur</button></form><button class="btn s plein deco" data-a="clDeconnexion">🔒 Se déconnecter (effacer mes informations de ce téléphone)</button></div>`, {init(){
     const m = carte('m1'), f = $('#f'); let upd = () => {}, fraisCalc = null, distCalc = null;
     const majProches = () => { const z = $('#lvProches'); if(!z) return; if(!pos) return;
       const sel = (f.querySelector('[name=lvCh]:checked') || {}).value || '', L = proches(pos);
@@ -1208,7 +1226,7 @@ const etapes = c => { let i = ['attente','acceptee','recuperee','livree'].indexO
   return `<ol class="etapes">${['Demande','Livreur trouvé','En route','Récupéré','Livré'].map((t,k) => `<li class="${k<=i?'fait':''}">${t}</li>`).join('')}</ol>`; };
 function suivi(id){ let w = 0; abonnerRole('client'); suivreColis(id);
   show(`<div class="pad"><div id="st"><p class="vide">Chargement…</p></div><div id="m2" class="map haute"></div><div id="det"></div><div id="code"></div><div id="pay"></div><div id="msgs"></div><div id="avis"></div>
-    <button class="lien" data-a="newCmd">Faire une nouvelle demande</button></div>`, {
+    <button class="lien" data-a="newCmd">Faire une nouvelle demande</button><button class="btn s plein deco" data-a="clDeconnexion">🔒 Se déconnecter</button></div>`, {
     init(){ this.m = carte('m2');
       gps(p => { const c = S.livraisons.find(x => x.id === id);
         if(c && ['attente','acceptee'].includes(c.statut) && Date.now() - w > 15000){ w = Date.now(); DB.set('livraisons', id, {clientPos:p}); } }); },
@@ -1276,11 +1294,15 @@ async function livreurLogin(){ const sv = ls.get('role', {}) || {};
       if(s && s.role === 'livreur' && s.lid === l.id && await DB.get('cles', s.cle).catch(() => null)) return livreurApp(l);
       if(l.pin && !s) return livreurApp(l); } }   // ancienne version, avant la migration des codes
   S.role = 'livreur-login';
+  if(modeLv() && !installee() && !patronConnecte()) return show(`${bandeau('Application livreur', 'o2c')}<div class="pad choixApp"><img class="appIco" src="icon-liv-192.png" alt="" onerror="this.src='${LOGO}'">
+    <h2>📲 Installation obligatoire</h2><p>Pour travailler avec ${esc(S.p.entreprise)}, installez l'application <b>${esc(S.p.entreprise)} Livreur</b> sur votre téléphone : elle reçoit les courses, partage votre position et sonne même écran éteint.</p>
+    <button class="btn jaune plein gros" data-a="installer">📲 Installer l'application livreur</button>
+    <p class="note">Déjà installée ? Ouvrez <b>« ${esc(S.p.entreprise)} Livreur »</b> depuis l'écran d'accueil de votre téléphone (icône avec le bandeau bleu LIVREUR).</p></div>`);
   const act = S.livreurs.filter(l => l.actif !== false);
   show(`${bandeau('Connexion livreur', 'o2c')}<div class="pad">${act.length ? `<form id="f" class="form">
     <label>Votre nom<select name="lv">${lvOpts()}</select></label>
     <label>Code PIN<input name="pin" type="password" inputmode="numeric" required></label>
-    <button class="btn jaune plein">Entrer</button></form>` : '<p class="alerte">Aucun livreur enregistré. Le patron doit d\'abord vous ajouter dans son espace.</p>'}</div>`, {init(){
+    <button class="btn jaune plein">Entrer</button></form>` : '<p class="alerte">Aucun livreur enregistré. Le patron doit d\'abord vous ajouter dans son espace.</p>'}${modeLv() ? '<div style="margin-top:14px">' + btnInstaller() + '</div>' : ''}</div>`, {init(){
     const f = $('#f'); if(f) f.onsubmit = async ev => { ev.preventDefault(); const l = S.livreurs.find(x => x.id === f.lv.value); if(!l) return;
       const b = f.querySelector('button:not(.oeil)'); b.disabled = true; b.textContent = 'Vérification…';
       try { const cle = await hacher('livreur', l.id, f.pin.value), k = await DB.get('cles', cle);
@@ -1294,7 +1316,7 @@ function solde(id){ const liv = S.livraisons.filter(c => c.livreurId === id && c
   return {liv, enc, part, vers, reste: part - vers}; }
 function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur'); S.lv = l; S.tab = tab; ls.set('role', {r:'livreur', id:l.id});
   if(ls.get('svc', false) && svcId == null) service(l, true);
-  const bar = `<div class="lvbar"><div class="row" style="margin:0">${avatar(l.id, 'moyen')}<div><b>${esc(l.nom)}</b><small id="svcTxt"></small></div></div><label class="switch" aria-label="En service"><input type="checkbox" id="svc" ${S.svc ? 'checked' : ''}><span></span></label></div>`
+  const bar = `<div class="lvbar"><div class="row" style="margin:0">${avatar(l.id, 'moyen')}<div><b>${esc(l.nom)}</b><small id="svcTxt"></small><button class="decoMini" data-a="lvDeconnexion">🔒 Se déconnecter</button></div></div><label class="switch" aria-label="En service"><input type="checkbox" id="svc" ${S.svc ? 'checked' : ''}><span></span></label></div>`
     + '<div id="gpsMsg" class="pad" style="padding-block:0"></div>' + tabs([['dem','🔔 Demandes'],['mes','🛵 Mes courses'],['bil','💰 Mon bilan']], tab);
   show(bar + `<div class="vue t-${tab}">` + (tab === 'mes' ? '<div id="m3" class="map pleine"></div><p id="rt" class="pad note" style="padding-bottom:0"></p>' : '') + '<div class="pad" id="lst"></div></div>', {
     init(){ $('#svc').onchange = ev => { service(l, ev.target.checked); VUE.refresh(); }; if(tab === 'mes') this.m = carte('m3'); },
@@ -1336,6 +1358,7 @@ function livreurApp(l, tab = 'dem'){ S.role = 'livreur'; abonnerRole('livreur');
           <div class="kpi v"><small>Mes gains du jour</small><b>${F(sum(auj, commission))}</b></div></div>
           ${(() => { const mo = moyenne(l.id); return mo ? `<p>Ma note : <span class="etoiles">${etoiles(mo.m)}</span> ${mo.m.toFixed(1)} / 5 (${mo.n} avis)</p>` : ''; })()}<h3>Mes gains (depuis le début)</h3><div class="kpis"><div class="kpi"><small>Courses livrées</small><b>${s.liv.length}</b></div><div class="kpi v"><small>Mes gains</small><b>${F(s.part)}</b></div>
           <div class="kpi"><small>Déjà payé par le patron</small><b>${F(s.vers)}</b></div><div class="kpi fort"><small>Reste à me payer</small><b>${F(s.reste)}</b></div></div>
+          <button class="btn s plein" data-a="lvDeconnexion">🔒 Me déconnecter (changer de livreur)</button>
           <h3>📒 Mon historique</h3><div class="row"><button class="btn s ${(S.bilP || 'm') === 'j' ? 'jaune' : ''}" data-a="bilPer" data-id="j">Aujourd'hui</button><button class="btn s ${(S.bilP || 'm') === '7' ? 'jaune' : ''}" data-a="bilPer" data-id="7">7 jours</button><button class="btn s ${(S.bilP || 'm') === 'm' ? 'jaune' : ''}" data-a="bilPer" data-id="m">Ce mois</button><button class="btn s ${(S.bilP || 'm') === 't' ? 'jaune' : ''}" data-a="bilPer" data-id="t">Tout</button></div>
           ${(() => { const n = Date.now(), k = S.bilP || 'm', d0 = k === 'j' ? jour(n) : k === '7' ? jour(n) - 6 * 864e5 : k === 'm' ? +new Date(new Date().getFullYear(), new Date().getMonth(), 1) : 0;
             const Lv = s.liv.filter(c => (c.livreeLe || 0) >= d0).sort((a, b) => b.livreeLe - a.livreeLe), Pv = S.versements.filter(v => v.livreurId === l.id && v.sens === 'paie' && v.date >= d0).sort((a, b) => b.date - a.date);
@@ -1428,7 +1451,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
     refresh(){ const st = $('#fSt').value, dt = $('#fDt').value, t0 = dt ? +new Date(dt + 'T00:00') : 0;
       const a = S.livraisons.filter(c => (!st || c.statut === st) && (!t0 || (c.creeLe >= t0 && c.creeLe < t0 + 864e5))).sort((x,y) => y.creeLe - x.creeLe);
       $('#lst').innerHTML = `<p class="note">${a.length} livraison(s)</p>` + (a.map(c => carteLivraison(c, 1)).join('') || '<p class="vide">Rien pour ce choix.</p>'); }},
-  lvr: {h:'<div class="pad"><button class="btn jaune plein" data-a="lvEdit">+ Ajouter un livreur</button><div id="lst"></div></div>',
+  lvr: {h:'<div class="pad"><button class="btn jaune plein" data-a="lvEdit">+ Ajouter un livreur</button><button class="btn plein" data-a="envoyerAppLv">📲 Envoyer l\'application livreur par WhatsApp</button><div id="lst"></div></div>',
     refresh(){ $('#lst').innerHTML = S.livreurs.slice().sort((a,b) => a.nom.localeCompare(b.nom)).map(l => { const p = S.positions.find(x => x.id === l.id);
       const on = p && p.enService && Date.now() - p.t < 10 * 60000;
       return `<div class="card"><div class="row sb"><span class="row" style="margin:0">${avatar(l.id, 'moyen') || '<span class="avatar moyen vide">📷</span>'}<b>${esc(l.nom)}</b></span><span class="pill ${l.actif === false ? 'annulee' : on ? 'livree' : 'attente'}">${l.actif === false ? 'Désactivé' : on ? 'En service' : 'Hors service'}</span></div>
@@ -1551,7 +1574,7 @@ function patronApp(tab = 'dir'){ S.role = 'patron'; garderEcran(true); abonnerRo
             <h3>⚠️ Clients toujours servis par le même livreur</h3><p class="note">Risque de contact direct : pensez à varier les livreurs pour ces clients.</p>
             ${risq.map(x => `<p>• <b>${esc(x.nom)}</b> : ${Math.round(x.part * 100)} % de ses livraisons par <b>${esc(x.lvNom)}</b></p>`).join('') || '<p class="note">Aucun.</p>'}`; })()}
         <div class="row" style="margin-top:14px"><a class="btn jaune" href="${wa('', S.rapTxt)}">Partager sur WhatsApp</a><button class="btn" data-a="copier">Copier le texte</button></div>`; }},
-  reg: {h:`<div class="pad"><form id="f" class="form">
+  reg: {h:`<div class="pad"><button class="btn s plein deco" data-a="deconnexion">🔒 Se déconnecter (le code patron sera redemandé)</button><form id="f" class="form">
       <label>Nom de l'entreprise<input name="entreprise" required value="${esc(S.p.entreprise)}"></label>
       <label>Téléphone de l'entreprise (affiché aux clients)<input name="tel" type="tel" value="${esc(S.p.tel)}"></label>
       <label>Nouveau code patron (6 chiffres ou plus) — laissez vide pour garder l'actuel<input name="pinNouveau" type="password" inputmode="numeric" pattern="[0-9]{6,}" autocomplete="new-password"></label>
@@ -1743,6 +1766,15 @@ const ACT = {
         const ent = net(S.p.entreprise), txt = [`Bonjour ${net(c.clientNom)},`, '', `${ent} vous a envoyé ${F(c.valeur)} par Mobile Money${c.expMomo ? ' (' + c.expMomo + ')' : ''} : paiement de votre marchandise, commande ${c.code}${net(c.colis) ? ' (' + net(c.colis) + ')' : ''}, livrée à ${net(c.destNom) || 'votre destinataire'} le ${D(c.livreeLe)}.`, v.renvoiRef ? `Référence : ${v.renvoiRef}` : '', '', `Merci de votre confiance ! ${ent}${S.p.tel ? ' · ' + net(S.p.tel) : ''}`].filter((x, i, A) => x !== '' || A[i - 1] !== '').join('\n');
         modal(`<h2>✅ Renvoi enregistré</h2><p>${F(c.valeur)} renvoyés à ${esc(net(c.clientNom))}${v.renvoiFrais ? ` · frais d'envoi ${F(v.renvoiFrais)} retirés de votre part` : ''}.</p><pre class="quitTxt">${esc(txt)}</pre>
           ${c.clientTel ? `<a class="btn vert plein" href="${wa(c.clientTel, txt)}">📲 Prévenir l'expéditeur par WhatsApp</a>` : ''}<button class="btn plein" data-a="fermer">Terminer</button>`); }; }); },
+  envoyerAppLv(){ const u = location.origin + location.pathname + '?app=livreur', txt = `Bonjour, voici l'application des livreurs ${S.p.entreprise} :\n${u}\n\n1. Ouvrez le lien dans Chrome.\n2. Touchez « 📲 Installer l'application ${S.p.entreprise} Livreur » (ou menu ⋮ → Installer l'application).\n3. Ouvrez « e-COURSE Livreur » sur votre écran d'accueil et entrez avec votre nom et votre code PIN.`;
+    modal(`<h2>📲 Application livreur</h2><p>Lien à envoyer à vos livreurs :</p><p class="lienTxt" style="word-break:break-all">${esc(u)}</p><p class="note">Elle s'installe à part, avec son icône bleue « LIVREUR », et s'ouvre directement sur la connexion livreur.</p>
+      <a class="btn vert plein" href="${wa('', txt)}">Envoyer par WhatsApp</a><button class="btn plein" data-a="fermer">Fermer</button>`); },
+  clDeconnexion(){ const c = S.livraisons.find(x => x.id === ls.get('cmd', null)), enCours = c && !['livree','annulee'].includes(c.statut);
+    modal(`<h2>🔒 Se déconnecter</h2><p>Votre nom et votre téléphone seront effacés de ce téléphone.</p>${enCours ? `<p class="alerte">⚠️ Votre commande <b>${esc(c.code)}</b> est en cours : vous ne pourrez plus la suivre sur ce téléphone. Gardez son lien de suivi (WhatsApp) avant de continuer.</p>` : ''}
+      <button class="btn rouge plein" data-a="clDecoOk">Oui, me déconnecter</button><button class="btn plein" data-a="fermer">Annuler</button>`); },
+  clDecoOk(){ ['client','cmd','voirLv'].forEach(k => ls.set(k, null)); try { sessionStorage.removeItem('clChoix'); } catch(e) {} fermer(); toast('🔒 Déconnecté : vos informations sont effacées de ce téléphone'); client(); },
+  clSansInstaller(){ try { sessionStorage.setItem('clChoix', 'sans'); } catch(e) {} commande(); },
+  lvDeconnexion(){ if(S.lv) service(S.lv, false); setTimeout(fermerSession, 2500); ls.set('role', null); abonnerRole(''); livreurLogin(); toast('🔒 Déconnecté'); },
   bilPer(k){ S.bilP = k; VUE.refresh && VUE.refresh(); if(S.lv) livreurApp(S.lv, 'bil'); },
   badges(cat){ const L = badgeItems()[cat] || [], nom = {client:'🛒 Client', livreur:'🛵 Livreur', patron:'👑 Patron'}[cat];
     modal(`<h2>${nom} : ${L.length} nouveauté${L.length > 1 ? 's' : ''}</h2>${L.length ? '<p class="note">Touchez une ligne pour la consulter : le chiffre baisse.</p>' : '<p class="vide">Rien de nouveau. 👍</p>'}
@@ -1763,7 +1795,7 @@ const ACT = {
   go: r => r === 'client' ? client() : r === 'livreur' ? livreurLogin() : patronLogin(),
   /* RETOUR INTÉRIEUR : le patron reste connecté (pas de code à retaper) tant que l'application n'est pas fermée ; le livreur, lui, passe hors service */
   accueil(){ if(S.role === 'livreur' && S.lv){ service(S.lv, false); setTimeout(fermerSession, 2500); /* laisse partir la position « hors service » d'abord */ } abonnerRole(''); accueil(); },
-  deconnexion(){ try { sessionStorage.removeItem('pat'); } catch {} fermerSession(); abonnerRole(''); accueil(); toast('🔒 Patron déconnecté : le code sera demandé à la prochaine entrée'); },
+  deconnexion(){ fermer(); try { sessionStorage.removeItem('pat'); } catch {} ls.set('patronIci', 0); fermerSession(); abonnerRole(''); accueil(); toast('🔒 Patron déconnecté : le code sera demandé à la prochaine entrée'); },
   sortie(){ ACT.accueil(); },
   tab: k => S.role === 'livreur' ? livreurApp(S.lv, k) : patronApp(k),
   newCmd(){ ls.set('cmd', null); commande(); },
@@ -2000,7 +2032,7 @@ async function demarrer(){
   const lienDirect = () => { const x = location.hash;
     if(x.startsWith('#avis-') || x.startsWith('#colis-')){ const [id, code] = x.slice(x.indexOf('-') + 1).split('-'); if(code) ls.set('code_' + id, code); avisDest(id); return true; }
     if(x === '#client'){ ls.set('viaLien', 1); client(); return true; }
-    if(x === '#livreur'){ livreurLogin(); return true; }
+    if(x === '#livreur'){ try { sessionStorage.setItem('lienLv', '1'); } catch(e) {} livreurLogin(); return true; }
     if(x === '#patron'){ patronLogin(); return true; }
     if(x === '#fabricant'){ if(!S.role) accueil(); ACT.fabricant(); return true; }
     return false; };
@@ -2016,15 +2048,16 @@ async function demarrer(){
     if(!$('#modal').hidden){ fermer(); return garde(); }                                   // une fenêtre ouverte : on la ferme
     if(S.role === 'patron' && S.tab !== 'dir'){ patronApp('dir'); scrollTo(0, 0); return garde(); }       // patron : retour à « En direct »
     if(S.role === 'livreur' && S.lv && S.tab !== 'dem'){ livreurApp(S.lv, 'dem'); scrollTo(0, 0); return garde(); }   // livreur : retour à « Demandes »
+    if(S.role === 'livreur-login' && modeLv() && !patronConnecte()){ try { history.back(); } catch(e) {} return; }   // application livreur : fermer
     if(S.role === 'patron-login' || S.role === 'livreur-login'){ accueil(); scrollTo(0, 0); return garde(); }        // écran du code : retour à l'accueil
-    if(S.role && ls.get('patronIci', 0)){                                                    // téléphone du patron : 2e retour = page des 3 espaces
+    if(S.role && patronConnecte()){                                                          // patron connecté : 2e retour = page des 3 espaces (sinon le client reste verrouillé)
       if(S.role === 'livreur') ACT.accueil(); else { abonnerRole(''); accueil(); }          // le patron garde sa connexion pour revenir sans code
       scrollTo(0, 0); return garde(); }
     try { history.back(); } catch(e) {}                                                     // client, livreur sur l'accueil de son espace, ou page des 3 espaces : fermer
   });
   finSplash();
   if(/Android/i.test(navigator.userAgent) && horsChrome() && location.protocol !== 'file:') alerte('info', "ℹ️ Vous êtes dans WhatsApp. Pour le GPS et les alarmes, touchez ⋮ en haut à droite puis « Ouvrir dans Chrome ».", 'gps', true);
-  if(lienDirect()) {} else if(sv.r === 'client') client(); else if(sv.r === 'livreur') livreurLogin(); else if(sv.r === 'patron') patronLogin(); else accueil();
+  if(/[?&]app=livreur/.test(location.search) && !location.hash) livreurLogin(); else if(/[?&]app=client/.test(location.search) && !location.hash){ ls.set('viaLien', 1); client(); } else if(lienDirect()) {} else if(sv.r === 'client') client(); else if(sv.r === 'livreur') livreurLogin(); else if(sv.r === 'patron') patronLogin(); else accueil();
 }
 demarrer().catch(er => { finSplash(); $('#app').innerHTML = `<div class="pad"><h2>Erreur au démarrage</h2><p>${esc(er.message)}</p></div>`; });
 </script>
